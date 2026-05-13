@@ -126,8 +126,8 @@ struct CreditCardCatalog {
                     dollarAmount: 200, period: .semiAnnually),
                 CatalogBenefit(
                     name: "Flight Credit",
-                    description: "Up to $100 semi-annually ($200/year) in statement credits for eligible flight purchases booked directly with airlines or through amextravel.com.",
-                    dollarAmount: 100, period: .semiAnnually),
+                    description: "Up to $50 each quarter ($200/year) in statement credits for eligible flight purchases booked directly with airlines or through amextravel.com.",
+                    dollarAmount: 100, period: .quarterly),
                 CatalogBenefit(
                     name: "Free Night Reward",
                     description: "Earn one Free Night Reward each card anniversary year. Redeemable at most Hilton portfolio properties worldwide.",
@@ -441,10 +441,595 @@ struct CreditCardCatalog {
                     dollarAmount: 325, period: .annually),
             ]
         ),
-    ]
+    ] + supplementalCards
 
+    private static let supplementalCards: [CatalogCard] = [
+
+        // ─────────────────────────────────────────────────────────────────
+        // AMERICAN EXPRESS
+        // ─────────────────────────────────────────────────────────────────
+
+        CatalogCard(
+            name: "Blue Cash Everyday",
+            issuer: "American Express",
+            annualFee: 0,
+            imageName: "amex_blue_cash_everyday",
+            accentColor: "#007BC1",
+            benefits: []
+        ),
+
+        CatalogCard(
+            name: "Green Card",
+            issuer: "American Express",
+            annualFee: 150,
+            imageName: "amex_green",
+            accentColor: "#0B5D3B",
+            benefits: []
+        ),
+
+        CatalogCard(
+            name: "Delta SkyMiles Reserve",
+            issuer: "American Express",
+            annualFee: 650,
+            imageName: "amex_delta_reserve",
+            accentColor: "#1A2B5E",
+            benefits: [
+                CatalogBenefit(name: "Annual Companion Certificate", description: "Receive an annual companion certificate after renewal, valid on eligible Delta flights. Terms apply.", dollarAmount: 0, period: .annually),
+            ]
+        ),
+
+        CatalogCard(
+            name: "Delta SkyMiles Platinum",
+            issuer: "American Express",
+            annualFee: 350,
+            imageName: "amex_delta_platinum",
+            accentColor: "#2B4A7A",
+            benefits: [
+                CatalogBenefit(name: "Rideshare Credit", description: "Up to $10/month in statement credits for eligible U.S. rideshare purchases.", dollarAmount: 10, period: .monthly),
+                CatalogBenefit(name: "Annual Companion Certificate", description: "Receive an annual companion certificate after renewal, valid on eligible Delta flights. Terms apply.", dollarAmount: 0, period: .annually),
+            ]
+        ),
+
+        CatalogCard(
+            name: "Delta SkyMiles Gold",
+            issuer: "American Express",
+            annualFee: 150,
+            imageName: "amex_delta_gold",
+            accentColor: "#B38A2E",
+            benefits: []
+        ),
+
+        CatalogCard(
+            name: "Marriott Bonvoy Boundless",
+            issuer: "Chase",
+            annualFee: 95,
+            imageName: "chase_marriott_boundless",
+            accentColor: "#B08D57",
+            benefits: [
+                CatalogBenefit(name: "Annual Free Night Award", description: "Receive one Free Night Award each card anniversary year. Redeemable at eligible Marriott Bonvoy properties, subject to terms.", dollarAmount: 0, period: .annually),
+            ]
+        ),
+
+        CatalogCard(
+            name: "Marriott Bonvoy Bountiful",
+            issuer: "Chase",
+            annualFee: 250,
+            imageName: "chase_marriott_bountiful",
+            accentColor: "#8C6A3D",
+            benefits: [
+                CatalogBenefit(name: "Annual Free Night Award", description: "Receive one Free Night Award each card anniversary year. Redeemable at eligible Marriott Bonvoy properties, subject to terms.", dollarAmount: 0, period: .annually),
+            ]
+        ),
+
+        CatalogCard(
+            name: "Marriott Bonvoy Bold",
+            issuer: "Chase",
+            annualFee: 0,
+            imageName: "chase_marriott_bold",
+            accentColor: "#6B4E2E",
+            benefits: []
+        ),
+
+        CatalogCard(
+            name: "Marriott Bonvoy Bevy",
+            issuer: "American Express",
+            annualFee: 250,
+            imageName: "amex_marriott_bevy",
+            accentColor: "#7A5A44",
+            benefits: [
+                CatalogBenefit(name: "Annual Free Night Award", description: "Receive an annual Free Night Award after account anniversary, subject to terms and eligible properties.", dollarAmount: 0, period: .annually),
+            ]
+        ),
+
+        CatalogCard(
+            name: "Marriott Bonvoy Brilliant",
+            issuer: "American Express",
+            annualFee: 650,
+            imageName: "amex_marriott_brilliant",
+            accentColor: "#4C3A2D",
+            benefits: [
+                CatalogBenefit(name: "Annual Free Night Award", description: "Receive an annual Free Night Award after account anniversary, subject to terms and eligible properties.", dollarAmount: 0, period: .annually),
+            ]
+        ),
+
+        // ─────────────────────────────────────────────────────────────────
+        // CAPITAL ONE
+        // ─────────────────────────────────────────────────────────────────
+
+        CatalogCard(name: "Platinum", issuer: "Capital One", annualFee: 0, imageName: "cap1_platinum", accentColor: "#B3B3B3", benefits: []),
+        CatalogCard(name: "Quicksilver", issuer: "Capital One", annualFee: 0, imageName: "cap1_quicksilver", accentColor: "#2E5B87", benefits: []),
+        CatalogCard(name: "QuicksilverOne", issuer: "Capital One", annualFee: 39, imageName: "cap1_quicksilverone", accentColor: "#355C7D", benefits: []),
+        CatalogCard(name: "Savor", issuer: "Capital One", annualFee: 0, imageName: "cap1_savor", accentColor: "#8A1F44", benefits: []),
+
+        CatalogCard(
+            name: "VentureOne",
+            issuer: "Capital One",
+            annualFee: 0,
+            imageName: "cap1_ventureone",
+            accentColor: "#A00000",
+            benefits: []
+        ),
+
+        CatalogCard(name: "Quicksilver Secured Rewards", issuer: "Capital One", annualFee: 0, imageName: "cap1_quicksilver_secured", accentColor: "#4C6A8A", benefits: []),
+        CatalogCard(name: "Platinum Secured", issuer: "Capital One", annualFee: 0, imageName: "cap1_platinum_secured", accentColor: "#8F8F8F", benefits: []),
+        CatalogCard(name: "T-Mobile Visa", issuer: "Capital One", annualFee: 0, imageName: "cap1_tmobile_visa", accentColor: "#E20074", benefits: []),
+        CatalogCard(name: "Kohl's Rewards Visa", issuer: "Capital One", annualFee: 0, imageName: "cap1_kohls_rewards", accentColor: "#5B3E96", benefits: []),
+        CatalogCard(name: "REI Co-op Mastercard", issuer: "Capital One", annualFee: 0, imageName: "cap1_rei_coop", accentColor: "#2D5B3A", benefits: []),
+        CatalogCard(name: "Pottery Barn Key Rewards Visa", issuer: "Capital One", annualFee: 0, imageName: "cap1_pottery_barn_key_rewards", accentColor: "#9B6B4A", benefits: []),
+        CatalogCard(name: "Williams Sonoma Key Rewards Visa", issuer: "Capital One", annualFee: 0, imageName: "cap1_williams_sonoma_key_rewards", accentColor: "#6B4E3D", benefits: []),
+        CatalogCard(name: "West Elm Key Rewards Visa", issuer: "Capital One", annualFee: 0, imageName: "cap1_west_elm_key_rewards", accentColor: "#8B6B4A", benefits: []),
+        CatalogCard(name: "Key Rewards Visa", issuer: "Capital One", annualFee: 0, imageName: "cap1_key_rewards", accentColor: "#7B5B3A", benefits: []),
+
+        // ─────────────────────────────────────────────────────────────────
+        // CITI
+        // ─────────────────────────────────────────────────────────────────
+
+        CatalogCard(
+            name: "Diamond Preferred",
+            issuer: "Citi",
+            annualFee: 0,
+            imageName: "citi_diamond_preferred",
+            accentColor: "#6A7BA2",
+            benefits: []
+        ),
+
+        CatalogCard(
+            name: "Strata",
+            issuer: "Citi",
+            annualFee: 0,
+            imageName: "citi_strata",
+            accentColor: "#0A6CB6",
+            benefits: []
+        ),
+
+        CatalogCard(
+            name: "Custom Cash",
+            issuer: "Citi",
+            annualFee: 0,
+            imageName: "citi_custom_cash",
+            accentColor: "#0E8A66",
+            benefits: []
+        ),
+
+        CatalogCard(
+            name: "AAdvantage Platinum Select",
+            issuer: "Citi",
+            annualFee: 99,
+            imageName: "citi_aadvantage_platinum_select",
+            accentColor: "#0057A8",
+            benefits: [
+                CatalogBenefit(name: "Preferred Boarding", description: "Preferred boarding on eligible American Airlines flights.", dollarAmount: 0, period: .annually),
+            ]
+        ),
+
+        CatalogCard(
+            name: "AAdvantage MileUp",
+            issuer: "Citi",
+            annualFee: 0,
+            imageName: "citi_aadvantage_mileup",
+            accentColor: "#7A4E2D",
+            benefits: []
+        ),
+
+        CatalogCard(
+            name: "Simplicity",
+            issuer: "Citi",
+            annualFee: 0,
+            imageName: "citi_simplicity",
+            accentColor: "#7A7A7A",
+            benefits: []
+        ),
+
+        CatalogCard(
+            name: "Costco Anywhere Visa",
+            issuer: "Citi",
+            annualFee: 0,
+            imageName: "citi_costco_anywhere",
+            accentColor: "#00558C",
+            benefits: []
+        ),
+
+        CatalogCard(
+            name: "Secured Mastercard",
+            issuer: "Citi",
+            annualFee: 0,
+            imageName: "citi_secured_mastercard",
+            accentColor: "#5E6A71",
+            benefits: []
+        ),
+
+        CatalogCard(
+            name: "AT&T Points Plus",
+            issuer: "Citi",
+            annualFee: 0,
+            imageName: "citi_att_points_plus",
+            accentColor: "#0057B8",
+            benefits: []
+        ),
+
+        // ─────────────────────────────────────────────────────────────────
+        // CHASE
+        // ─────────────────────────────────────────────────────────────────
+
+        CatalogCard(name: "Freedom Rise", issuer: "Chase", annualFee: 0, imageName: "chase_freedom_rise", accentColor: "#4A7BA7", benefits: []),
+        CatalogCard(name: "Slate", issuer: "Chase", annualFee: 0, imageName: "chase_slate", accentColor: "#8A8F95", benefits: []),
+        CatalogCard(name: "Slate Edge", issuer: "Chase", annualFee: 0, imageName: "chase_slate_edge", accentColor: "#67727E", benefits: []),
+
+        CatalogCard(
+            name: "United Explorer",
+            issuer: "Chase",
+            annualFee: 150,
+            imageName: "chase_united_explorer",
+            accentColor: "#005DAA",
+            benefits: [
+                CatalogBenefit(name: "Annual United Club Passes", description: "Receive 2 United Club one-time passes each year.", dollarAmount: 0, period: .annually),
+            ]
+        ),
+
+        CatalogCard(
+            name: "United Quest",
+            issuer: "Chase",
+            annualFee: 350,
+            imageName: "chase_united_quest",
+            accentColor: "#003A70",
+            benefits: [
+                CatalogBenefit(name: "United Travel Credit", description: "Receive a $200 United travel credit each cardmember year.", dollarAmount: 200, period: .annually),
+                CatalogBenefit(name: "Annual Award Flight Discount", description: "Receive an annual 10,000-mile award flight discount.", dollarAmount: 0, period: .annually),
+            ]
+        ),
+
+        CatalogCard(
+            name: "United Gateway",
+            issuer: "Chase",
+            annualFee: 0,
+            imageName: "chase_united_gateway",
+            accentColor: "#005DAA",
+            benefits: []
+        ),
+
+        CatalogCard(
+            name: "United Club",
+            issuer: "Chase",
+            annualFee: 695,
+            imageName: "chase_united_club",
+            accentColor: "#002B49",
+            benefits: []
+        ),
+
+        CatalogCard(
+            name: "Southwest Rapid Rewards Plus",
+            issuer: "Chase",
+            annualFee: 99,
+            imageName: "chase_southwest_plus",
+            accentColor: "#0078BE",
+            benefits: []
+        ),
+
+        CatalogCard(
+            name: "Southwest Rapid Rewards Priority",
+            issuer: "Chase",
+            annualFee: 229,
+            imageName: "chase_southwest_priority",
+            accentColor: "#00529B",
+            benefits: []
+        ),
+
+        CatalogCard(
+            name: "Southwest Rapid Rewards Premier",
+            issuer: "Chase",
+            annualFee: 149,
+            imageName: "chase_southwest_premier",
+            accentColor: "#004A99",
+            benefits: []
+        ),
+
+        CatalogCard(
+            name: "IHG One Rewards Premier",
+            issuer: "Chase",
+            annualFee: 99,
+            imageName: "chase_ihg_premier",
+            accentColor: "#002F6C",
+            benefits: [
+                CatalogBenefit(name: "Annual Free Night Reward", description: "Receive a Free Night Reward each card anniversary year, subject to program terms.", dollarAmount: 0, period: .annually),
+            ]
+        ),
+
+        CatalogCard(
+            name: "IHG One Rewards Traveler",
+            issuer: "Chase",
+            annualFee: 0,
+            imageName: "chase_ihg_traveler",
+            accentColor: "#0C4DA2",
+            benefits: []
+        ),
+
+        CatalogCard(
+            name: "World of Hyatt",
+            issuer: "Chase",
+            annualFee: 95,
+            imageName: "chase_world_of_hyatt",
+            accentColor: "#0D6DB6",
+            benefits: [
+                CatalogBenefit(name: "Annual Free Night Award", description: "Receive one Free Night Award each card anniversary year.", dollarAmount: 0, period: .annually),
+                CatalogBenefit(name: "Tier-Qualifying Night Credits", description: "Receive 5 tier-qualifying night credits each year.", dollarAmount: 0, period: .annually),
+            ]
+        ),
+
+        CatalogCard(name: "Disney Inspire Visa", issuer: "Chase", annualFee: 149, imageName: "chase_disney_inspire", accentColor: "#1E5AA8", benefits: []),
+        CatalogCard(name: "Disney Premier Visa", issuer: "Chase", annualFee: 49, imageName: "chase_disney_premier", accentColor: "#4A90E2", benefits: []),
+        CatalogCard(name: "Disney Visa", issuer: "Chase", annualFee: 0, imageName: "chase_disney_visa", accentColor: "#7A7A7A", benefits: []),
+        CatalogCard(name: "Aeroplan", issuer: "Chase", annualFee: 95, imageName: "chase_aeroplan", accentColor: "#D71920", benefits: []),
+        CatalogCard(name: "British Airways Visa Signature", issuer: "Chase", annualFee: 95, imageName: "chase_british_airways", accentColor: "#1B3A6B", benefits: []),
+        CatalogCard(name: "Aer Lingus Visa Signature", issuer: "Chase", annualFee: 95, imageName: "chase_aer_lingus", accentColor: "#0B7A75", benefits: []),
+        CatalogCard(name: "Iberia Visa Signature", issuer: "Chase", annualFee: 95, imageName: "chase_iberia", accentColor: "#C8102E", benefits: []),
+        CatalogCard(name: "DoorDash Rewards Mastercard", issuer: "Chase", annualFee: 0, imageName: "chase_doordash", accentColor: "#FF3008", benefits: [CatalogBenefit(name: "DashPass", description: "Receive a complimentary DashPass membership, valued at $96/year.", dollarAmount: 96, period: .annually)]),
+        CatalogCard(name: "Instacart Mastercard", issuer: "Chase", annualFee: 0, imageName: "chase_instacart", accentColor: "#43B02A", benefits: [CatalogBenefit(name: "Approval Credit", description: "Receive a $50 Instacart credit automatically upon approval.", dollarAmount: 50, period: .annually)]),
+    ]
     /// Returns catalog cards not yet in the user's wallet
     static func available(excluding ownedIDs: Set<String>) -> [CatalogCard] {
         all.filter { !ownedIDs.contains("\($0.issuer):\($0.name)") }
+    }
+
+    static func earningHighlights(for card: CatalogCard) -> [String] {
+        switch card.id {
+        case "american_express_platinum_card":
+            return [
+                "5x points on flights booked directly with airlines or through Amex Travel.",
+                "5x points on prepaid hotels booked through Amex Travel."
+            ]
+        case "american_express_gold_card":
+            return [
+                "4x points at restaurants worldwide.",
+                "4x points at U.S. supermarkets (up to the card's published limit).",
+                "3x points on flights booked directly with airlines or through Amex Travel."
+            ]
+        case "american_express_blue_cash_preferred":
+            return [
+                "6% cash back at U.S. supermarkets (up to the card's published limit).",
+                "6% cash back on select U.S. streaming subscriptions.",
+                "3% cash back at U.S. gas stations and on transit."
+            ]
+        case "american_express_hilton_honors_aspire_card":
+            return [
+                "14x points at Hilton hotels and resorts.",
+                "7x points on flights booked directly with airlines or through Amex Travel.",
+                "7x points on select car rentals booked directly with eligible agencies."
+            ]
+        case "american_express_hilton_honors_surpass_card":
+            return [
+                "12x points at Hilton hotels and resorts.",
+                "6x points at U.S. restaurants, U.S. supermarkets, and U.S. gas stations."
+            ]
+        case "american_express_hilton_honors_card":
+            return [
+                "7x points at Hilton hotels and resorts.",
+                "5x points at U.S. restaurants, U.S. supermarkets, and U.S. gas stations."
+            ]
+        case "chase_sapphire_reserve":
+            return [
+                "8x points on Chase Travel purchases.",
+                "4x points on flights and hotels booked direct.",
+                "3x points on dining worldwide.",
+                "1x point on other purchases."
+            ]
+        case "chase_sapphire_preferred":
+            return [
+                "5x points on travel purchased through Chase Travel.",
+                "3x points on dining.",
+                "2x points on other travel purchases.",
+                "1x point on other purchases."
+            ]
+        case "chase_freedom_unlimited":
+            return [
+                "5% cash back on travel purchased through Chase Travel.",
+                "3% cash back on dining and drugstore purchases.",
+                "1.5% cash back on all other purchases."
+            ]
+        case "chase_freedom_flex":
+            return [
+                "5% cash back on up to $1,500 in rotating quarterly categories when activated.",
+                "5% cash back on travel purchased through Chase Travel.",
+                "3% cash back on dining and drugstore purchases.",
+                "1% cash back on all other purchases."
+            ]
+        case "chase_amazon_prime_visa":
+            return [
+                "5% cash back at Amazon.com, Whole Foods Market, Amazon Fresh, and Chase Travel with eligible Prime membership.",
+                "2% cash back at gas stations, restaurants, and local transit/commuting.",
+                "1% cash back on all other purchases."
+            ]
+        case "capital_one_venture_x":
+            return [
+                "10x miles on hotels and rental cars booked through Capital One Travel.",
+                "5x miles on flights and vacation rentals booked through Capital One Travel.",
+                "2x miles on every purchase."
+            ]
+        case "capital_one_venture":
+            return ["2x miles on every purchase."]
+        case "capital_one_savorone":
+            return [
+                "3% cash back on dining, entertainment, grocery stores, and popular streaming services.",
+                "5% cash back on hotels and rental cars booked through Capital One Travel."
+            ]
+        case "citi_strata_premier":
+            return [
+                "10x points on hotels, car rentals, and attractions booked through Citi Travel.",
+                "3x points on air travel, restaurants, supermarkets, gas stations, and EV charging.",
+                "1x point on other purchases."
+            ]
+        case "citi_double_cash":
+            return ["2% total cash back on every purchase: 1% when you buy and 1% when you pay."]
+        case "citi_custom_cash":
+            return [
+                "5% cash back on your top eligible spend category each billing cycle, up to the card's published cap.",
+                "1% cash back on all other purchases."
+            ]
+        case "citi_aadvantage_platinum_select_world_elite_mastercard":
+            return [
+                "2x AAdvantage miles at restaurants and gas stations.",
+                "1x mile on other purchases."
+            ]
+        case "citi_aadvantage_mile_up_credit_card":
+            return [
+                "2x AAdvantage miles at grocery stores.",
+                "1x mile on other purchases."
+            ]
+        case "discover_it_cash_back":
+            return [
+                "5% cash back on up to $1,500 in rotating quarterly categories when activated.",
+                "1% cash back on all other purchases."
+            ]
+        case "wf_autograph_journey":
+            return [
+                "5x points on hotels.",
+                "4x points on airlines.",
+                "3x points on dining, travel, gas stations, transit, and select streaming services."
+            ]
+        case "boa_premium_rewards_elite":
+            return [
+                "2x points on travel and dining purchases.",
+                "1.5x points on all other purchases."
+            ]
+        case "usb_altitude_reserve":
+            return [
+                "5x points on prepaid hotels and car rentals booked directly in the Altitude Rewards Center.",
+                "5x points on eligible travel booked directly through the Altitude Rewards Center.",
+                "1x point on all other purchases."
+            ]
+        case "chase_united_explorer":
+            return [
+                "2x miles on United purchases, dining, and hotel stays.",
+                "1x mile on other purchases."
+            ]
+        case "chase_united_quest":
+            return [
+                "3x miles on United purchases.",
+                "2x miles on travel, dining, and select streaming services.",
+                "1x mile on other purchases."
+            ]
+        case "chase_united_gateway":
+            return [
+                "2x miles on United purchases, gas stations, local transit, and commuting.",
+                "1x mile on other purchases."
+            ]
+        case "chase_united_club":
+            return [
+                "4x miles on United purchases.",
+                "2x miles on dining and all other travel.",
+                "1x mile on other purchases."
+            ]
+        case "chase_southwest_rapid_rewards_plus":
+            return [
+                "2x points on Southwest purchases.",
+                "1x point on all other purchases."
+            ]
+        case "chase_southwest_rapid_rewards_priority":
+            return [
+                "4x points on Southwest purchases.",
+                "2x points at gas stations and restaurants.",
+                "1x point on all other purchases."
+            ]
+        case "chase_southwest_rapid_rewards_premier":
+            return [
+                "3x points on Southwest purchases.",
+                "2x points on transit and select rideshare purchases.",
+                "1x point on all other purchases."
+            ]
+        case "chase_ihg_one_rewards_premier":
+            return [
+                "10x points at IHG hotels and resorts.",
+                "5x points on travel, gas stations, and dining.",
+                "3x points on all other purchases."
+            ]
+        case "chase_ihg_one_rewards_traveler":
+            return [
+                "5x points at IHG hotels and resorts.",
+                "2x points on travel, gas stations, and restaurants.",
+                "1x point on other purchases."
+            ]
+        case "chase_world_of_hyatt":
+            return [
+                "4x points at Hyatt hotels and resorts.",
+                "2x points on local transit, commuting, and fitness clubs.",
+                "1x point on other purchases."
+            ]
+        case "chase_disney_inspire_visa":
+            return [
+                "10% Disney Rewards Dollars on eligible Disney+, Hulu, and ESPN+ purchases.",
+                "3% on qualifying gas station and most Disney U.S. location purchases.",
+                "2% on grocery stores and restaurants.",
+                "1% on all other purchases."
+            ]
+        case "chase_disney_premier_visa":
+            return [
+                "5% Disney Rewards Dollars on eligible Disney+ / Hulu / ESPN+ purchases.",
+                "2% on select Disney purchases and airline purchases.",
+                "1% on all other purchases."
+            ]
+        case "chase_disney_visa":
+            return [
+                "3% Disney Rewards Dollars on eligible Disney+ / Hulu / ESPN+ purchases.",
+                "1% on all other purchases."
+            ]
+        case "chase_aeroplan":
+            return [
+                "3x points at grocery stores, dining (including takeout and delivery), and Air Canada purchases.",
+                "1x point on other purchases."
+            ]
+        case "chase_british_airways_visa_signature":
+            return [
+                "3 Avios per $1 on British Airways, Aer Lingus, and Iberia flight purchases.",
+                "2 Avios per $1 on hotel accommodations.",
+                "1 Avios per $1 on other purchases."
+            ]
+        case "chase_aer_lingus_visa_signature":
+            return [
+                "3 Avios per $1 on Aer Lingus, British Airways, and Iberia flight purchases.",
+                "2 Avios per $1 on hotel accommodations.",
+                "1 Avios per $1 on other purchases."
+            ]
+        case "chase_iberia_visa_signature":
+            return [
+                "3 Avios per $1 on Iberia, British Airways, and Aer Lingus flight purchases.",
+                "2 Avios per $1 on hotel accommodations.",
+                "1 Avios per $1 on other purchases."
+            ]
+        case "chase_doordash_rewards_mastercard":
+            return [
+                "4% cash back on DoorDash and Caviar orders.",
+                "3% cash back on dining purchased directly from a restaurant.",
+                "2% cash back on grocery stores.",
+                "1% cash back on other purchases."
+            ]
+        case "chase_instacart_mastercard":
+            return [
+                "5% cash back on qualifying Instacart purchases up to the annual limit.",
+                "5% cash back on Chase Travel purchases.",
+                "2% cash back at restaurants, gas stations, and select streaming services.",
+                "1% cash back on other purchases."
+            ]
+        default:
+            return []
+        }
     }
 }

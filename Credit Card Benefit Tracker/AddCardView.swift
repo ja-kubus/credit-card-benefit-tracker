@@ -20,15 +20,14 @@ struct AddCardView: View {
     }
 
     private var filteredCards: [CatalogCard] {
-        let available = CreditCardCatalog.available(excluding: ownedIDs)
-        if searchText.isEmpty { return available }
-        return available.filter {
+        if searchText.isEmpty { return CreditCardCatalog.all }
+        return CreditCardCatalog.all.filter {
             $0.name.localizedCaseInsensitiveContains(searchText) ||
             $0.issuer.localizedCaseInsensitiveContains(searchText)
         }
     }
 
-    // Group by issuer
+    // Group by issuer (all cards, owned or not)
     private var groupedCards: [(issuer: String, cards: [CatalogCard])] {
         let grouped = Dictionary(grouping: filteredCards, by: \.issuer)
         return grouped.keys.sorted().map { issuer in
@@ -46,7 +45,8 @@ struct AddCardView: View {
                         ForEach(groupedCards, id: \.issuer) { group in
                             Section(group.issuer) {
                                 ForEach(group.cards) { card in
-                                    CatalogCardRow(card: card) {
+                                    let isOwned = ownedIDs.contains(card.id)
+                                    CatalogCardRow(card: card, isOwned: isOwned) {
                                         addCard(card)
                                     }
                                 }
@@ -71,7 +71,6 @@ struct AddCardView: View {
         let card = UserCard(from: catalog)
         modelContext.insert(card)
 
-        // Find catalog entry and create BenefitCompletion records
         for benefit in catalog.benefits {
             let completion = BenefitCompletion(cardID: card.catalogCardID, benefit: benefit)
             modelContext.insert(completion)
@@ -84,11 +83,12 @@ struct AddCardView: View {
 
 struct CatalogCardRow: View {
     let card: CatalogCard
+    let isOwned: Bool
     let onAdd: () -> Void
 
     var body: some View {
         HStack(spacing: 14) {
-            // Mini card thumbnail – real photo if available, gradient fallback
+            // Mini card thumbnail
             Group {
                 if UIImage(named: card.imageName) != nil {
                     Image(card.imageName)
@@ -113,6 +113,7 @@ struct CatalogCardRow: View {
             }
             .frame(width: 60, height: 38)
             .shadow(color: Color(hex: card.accentColor).opacity(0.3), radius: 4, x: 0, y: 2)
+            .opacity(isOwned ? 0.4 : 1.0)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(card.name)
@@ -120,20 +121,33 @@ struct CatalogCardRow: View {
                 Text(card.annualFee == 0 ? "No Annual Fee" : "Annual Fee: \(card.annualFee, format: .currency(code: "USD"))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if isOwned {
+                    Text("Already in wallet")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
             }
+            .opacity(isOwned ? 0.5 : 1.0)
 
             Spacer()
 
-            Button {
-                onAdd()
-            } label: {
-                Image(systemName: "plus.circle.fill")
+            if isOwned {
+                Image(systemName: "checkmark.circle.fill")
                     .font(.title2)
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(.secondary)
+            } else {
+                Button {
+                    onAdd()
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.blue)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .padding(.vertical, 4)
+        .contentShape(Rectangle()) // keeps tap area clean without triggering add
     }
 }
 

@@ -65,6 +65,10 @@ struct CardDetailView: View {
                         .padding(.horizontal, 20)
                         .padding(.bottom, 24)
 
+                    earningSection
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 24)
+
                     if benefitsByPeriod.isEmpty {
                         noBenefitsPlaceholder
                     } else {
@@ -193,6 +197,49 @@ struct CardDetailView: View {
         .padding(.vertical, 14)
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var earningSection: some View {
+        let highlights = catalog.map { CreditCardCatalog.earningHighlights(for: $0) } ?? []
+
+        return VStack(alignment: .leading, spacing: 10) {
+            Label("Earning Rates", systemImage: "percent")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 4)
+
+            VStack(alignment: .leading, spacing: 8) {
+                if highlights.isEmpty {
+                    Text("No recurring points multiplier or cashback rate listed for this card.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
+                } else {
+                    ForEach(Array(highlights.enumerated()), id: \.offset) { index, highlight in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "circle.fill")
+                                .font(.system(size: 7))
+                                .foregroundStyle(.secondary)
+                                .padding(.top, 7)
+                            Text(highlight)
+                                .font(.subheadline)
+                                .foregroundStyle(.primary)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 2)
+
+                        if index < highlights.count - 1 {
+                            Divider().padding(.leading, 38)
+                        }
+                    }
+                    .padding(.vertical, 12)
+                }
+            }
+            .background(Color(.secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
     }
 
     private var noBenefitsPlaceholder: some View {

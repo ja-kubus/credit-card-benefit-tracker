@@ -14,7 +14,10 @@ struct CardsView: View {
     @State private var showingAddCard = false
     @State private var selectedCard: UserCard? = nil
 
-    @State private var cardToDelete: UserCard? = nil
+    // Mass deletion state
+    @State private var isDeleting = false
+    @State private var selectedForDeletion: Set<PersistentIdentifier> = []
+    @State private var showBulkDeleteAlert = false
 
     private let columns = [
         GridItem(.flexible(), spacing: 16),
@@ -33,11 +36,44 @@ struct CardsView: View {
             .navigationTitle("My Wallet")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showingAddCard = true
-                    } label: {
-                        Image(systemName: "plus")
-                            .fontWeight(.semibold)
+                    if isDeleting {
+                        // Confirm / Cancel row
+                        HStack(spacing: 16) {
+                            Button("Cancel") {
+                                withAnimation { exitDeletionMode() }
+                            }
+                            .foregroundStyle(.secondary)
+
+                            Button {
+                                if !selectedForDeletion.isEmpty {
+                                    showBulkDeleteAlert = true
+                                }
+                            } label: {
+                                Text("Delete")
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(selectedForDeletion.isEmpty ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.red))
+                            }
+                            .disabled(selectedForDeletion.isEmpty)
+                        }
+                    } else {
+                        HStack(spacing: 16) {
+                            if !userCards.isEmpty {
+                                Button {
+                                    withAnimation { isDeleting = true }
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .fontWeight(.semibold)
+                                }
+                                .foregroundStyle(.red)
+                            }
+
+                            Button {
+                                showingAddCard = true
+                            } label: {
+                                Image(systemName: "plus")
+                                    .fontWeight(.semibold)
+                            }
+                        }
                     }
                 }
             }
@@ -49,21 +85,13 @@ struct CardsView: View {
                     modelContext.delete(card)
                 })
             }
-            .alert("Remove Card", isPresented: Binding(
-                get: { cardToDelete != nil },
-                set: { if !$0 { cardToDelete = nil } }
-            )) {
+            .alert("Remove Cards", isPresented: $showBulkDeleteAlert) {
                 Button("Remove", role: .destructive) {
-                    if let card = cardToDelete {
-                        modelContext.delete(card)
-                        cardToDelete = nil
-                    }
+                    deleteSelected()
                 }
-                Button("Cancel", role: .cancel) { cardToDelete = nil }
+                Button("Cancel", role: .cancel) {}
             } message: {
-                if let card = cardToDelete {
-                    Text("Remove \(card.issuer) \(card.name) from your wallet?")
-                }
+                Text("Remove \(selectedForDeletion.count) card\(selectedForDeletion.count == 1 ? "" : "s") from your wallet? This cannot be undone.")
             }
         }
     }
@@ -89,32 +117,72 @@ struct CardsView: View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 16) {
                 ForEach(userCards) { card in
+                    let isSelected = selectedForDeletion.contains(card.persistentModelID)
+
                     ZStack(alignment: .topTrailing) {
                         CardThumbnail(card: card)
-                            .onTapGesture { selectedCard = card }
+                            .opacity(isDeleting && !isSelected ? 0.5 : 1.0)
+                            .overlay(
+                                // Selection ring in deletion mode
+                                RoundedRectangle(cornerRadius: 16)
+                                    .strokeBorder(isSelected ? Color.red : Color.clear, lineWidth: 3)
+                            )
+                            .onTapGesture {
+                                if isDeleting {
+                                    toggleSelection(card)
+                                } else {
+                                    selectedCard = card
+                                }
+                            }
                             .contextMenu {
-                                Button(role: .destructive) {
-                                    cardToDelete = card
-                                } label: {
-                                    Label("Remove Card", systemImage: "trash")
+                                if !isDeleting {
+                                    Button(role: .destructive) {
+                                        modelContext.delete(card)
+                                    } label: {
+                                        Label("Remove Card", systemImage: "trash")
+                                    }
                                 }
                             }
 
-                        // Remove badge
-                        Button {
-                            cardToDelete = card
-                        } label: {
-                            Image(systemName: "minus.circle.fill")
+                        // Selection checkmark badge in deletion mode
+                        if isDeleting {
+                            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                                 .font(.title3)
-                                .foregroundStyle(.white, .red)
+                                .foregroundStyle(Color.white, isSelected ? Color.red : Color(.systemGray3))
                                 .shadow(radius: 2)
+                                .offset(x: 6, y: -6)
+                                .allowsHitTesting(false)
                         }
-                        .offset(x: 6, y: -6)
                     }
+                    .animation(.easeInOut(duration: 0.15), value: isSelected)
                 }
             }
             .padding(16)
         }
+    }
+
+    // MARK: - Helpers
+
+    private func toggleSelection(_ card: UserCard) {
+        let id = card.persistentModelID
+        if selectedForDeletion.contains(id) {
+            selectedForDeletion.remove(id)
+        } else {
+            selectedForDeletion.insert(id)
+        }
+    }
+
+    private func deleteSelected() {
+        let toDelete = userCards.filter { selectedForDeletion.contains($0.persistentModelID) }
+        for card in toDelete {
+            modelContext.delete(card)
+        }
+        exitDeletionMode()
+    }
+
+    private func exitDeletionMode() {
+        isDeleting = false
+        selectedForDeletion.removeAll()
     }
 }
 
