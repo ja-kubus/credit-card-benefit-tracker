@@ -9,6 +9,26 @@ import Foundation
 import SwiftUI
 import SwiftData
 
+// MARK: - Benefit Category
+
+enum BenefitCategory: String, Codable, CaseIterable {
+    case dining         = "Dining"
+    case travel         = "Travel"
+    case entertainment  = "Entertainment"
+    case shopping       = "Shopping"
+    case miscellaneous  = "Miscellaneous"
+    
+    var color: Color {
+        switch self {
+        case .dining:        return Color(red: 1.0, green: 0.7, blue: 0.5)   // Warm orange
+        case .travel:        return Color(red: 0.4, green: 0.8, blue: 1.0)   // Sky blue
+        case .entertainment: return Color(red: 0.9, green: 0.5, blue: 0.8)   // Purple-pink
+        case .shopping:      return Color(red: 0.6, green: 1.0, blue: 0.6)   // Green
+        case .miscellaneous: return Color(red: 0.8, green: 0.8, blue: 0.8)   // Gray
+        }
+    }
+}
+
 // MARK: - Benefit Period
 
 enum BenefitPeriod: String, Codable, CaseIterable {
@@ -74,13 +94,15 @@ struct CatalogBenefit: Identifiable, Codable, Hashable {
     let description: String
     let dollarAmount: Double
     let period: BenefitPeriod
+    let category: BenefitCategory
 
-    init(id: UUID = UUID(), name: String, description: String, dollarAmount: Double, period: BenefitPeriod) {
+    init(id: UUID = UUID(), name: String, description: String, dollarAmount: Double, period: BenefitPeriod, category: BenefitCategory = .miscellaneous) {
         self.id          = id
         self.name        = name
         self.description = description
         self.dollarAmount = dollarAmount
         self.period      = period
+        self.category    = category
     }
 }
 

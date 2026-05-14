@@ -25,33 +25,33 @@ struct CreditCardCatalog {
                 CatalogBenefit(
                     name: "Uber Cash",
                     description: "$15/month in Uber Cash for U.S. rides & Uber Eats (bonus $20 in December = $200/year total). Add Platinum Card to Uber account and select an Amex card for your transaction.",
-                    dollarAmount: 15, period: .monthly, category: .dining),
+                    dollarAmount: 15, period: .monthly),
                 CatalogBenefit(
                     name: "Uber One Membership Credit",
                     description: "$10/month statement credit when you pay for auto-renewing Uber One membership with your Platinum Card ($120/year).",
-                    dollarAmount: 10, period: .monthly, category: .travel),
+                    dollarAmount: 10, period: .monthly),
                 CatalogBenefit(
                     name: "Digital Entertainment Credit",
                     description: "Up to $25/month for Disney+, ESPN+, Hulu, The New York Times, Paramount+, Peacock, The Wall Street Journal, YouTube Premium, or YouTube TV ($300/year). Enrollment required.",
-                    dollarAmount: 25, period: .monthly, category: .entertainment),
+                    dollarAmount: 25, period: .monthly),
                 CatalogBenefit(
                     name: "Walmart+ Membership Credit",
                     description: "Up to $12.95/month statement credit for one Walmart+ monthly membership (subject to auto-renewal) when you pay with the Platinum Card.",
-                    dollarAmount: 12.95, period: .monthly, category: .shopping),
+                    dollarAmount: 12.95, period: .monthly),
                 // Quarterly
                 CatalogBenefit(
                     name: "Resy Dining Credit",
                     description: "Up to $100/quarter ($400/year) in statement credits for eligible purchases at U.S. Resy restaurants or other eligible Resy purchases. Enrollment required.",
-                    dollarAmount: 100, period: .quarterly, category: .dining),
+                    dollarAmount: 100, period: .quarterly),
                 CatalogBenefit(
                     name: "lululemon Credit",
                     description: "Up to $75/quarter ($300/year) at U.S. lululemon retail stores (excluding outlets) and lululemon.com. Enrollment required.",
-                    dollarAmount: 75, period: .quarterly, category: .shopping),
+                    dollarAmount: 75, period: .quarterly),
                 // Semi-annually
                 CatalogBenefit(
                     name: "Fine Hotels + Resorts Hotel Credit",
                     description: "Up to $300 semi-annually ($600/year) on prepaid Fine Hotels + Resorts® or The Hotel Collection bookings through American Express Travel® (Hotel Collection requires 2-night minimum stay).",
-                    dollarAmount: 300, period: .semiAnnually, category: .travel),
+                    dollarAmount: 300, period: .semiAnnually),
                 // Annually
                 CatalogBenefit(
                     name: "CLEAR+ Membership Credit",
@@ -60,15 +60,20 @@ struct CreditCardCatalog {
                 CatalogBenefit(
                     name: "Airline Fee Credit",
                     description: "Up to $200/year in statement credits for incidental airline fees (checked bags, in-flight refreshments, etc.) charged to your Platinum Card. Select one qualifying airline.",
-                    dollarAmount: 200, period: .annually, category: .travel),
+                    dollarAmount: 200, period: .annually),
                 CatalogBenefit(
                     name: "Global Entry / TSA PreCheck Credit",
                     description: "Up to $120 statement credit every 4.5 years for Global Entry application fee ($100) or TSA PreCheck® application fee ($85).",
-                    dollarAmount: 120, period: .annually, category: .travel),
+                    dollarAmount: 120, period: .annually),
                 CatalogBenefit(
                     name: "Saks Fifth Avenue Credit",
                     description: "Up to $50 in statement credits at Saks Fifth Avenue or saks.com January–June, and up to $50 July–December ($100/year). Enrollment required.",
-                    dollarAmount: 50, period: .semiAnnually, category: .shopping),
+                    dollarAmount: 50, period: .semiAnnually),
+                CatalogBenefit(name: "Delta Sky Club Visits", description: "Up to 10 Delta Sky Club visits when flying on an eligible Delta flight.", dollarAmount: 0, period: .annually, category: .travel),
+                CatalogBenefit(name: "Marriott Bonvoy Gold Elite Status", description: "Enjoy complimentary Marriott Bonvoy Gold Elite Status.", dollarAmount: 0, period: .annually, category: .miscellaneous),
+                CatalogBenefit(name: "Hilton Honors Gold Status", description: "Enjoy complimentary Hilton Honors Gold Status.", dollarAmount: 0, period: .annually, category: .miscellaneous),
+                CatalogBenefit(name: "Platinum Member Airfares", description: "Explore select seats with over 30 participating airlines on designated flights with Platinum Member Airfares when booked through Amex Travel.", dollarAmount: 0, period: .annually, category: .dining),
+                CatalogBenefit(name: "Fine Hotels + Resorts Benefits", description: "Enjoy 12 PM Check-In, $100 credit towards eligible charges, room upgrade upon arrival, wifi, breakfast for two, and guaranteed 4pm check-out at Fine Hotels + Resorts.", dollarAmount: 0, period: .annually, category: .travel),
             ]
         ),
 
@@ -79,22 +84,29 @@ struct CreditCardCatalog {
             imageName: "amex_gold",
             accentColor: "#C6973F",
             benefits: [
+                //monthly
                 CatalogBenefit(
                     name: "Uber Cash",
                     description: "$10/month in Uber Cash for U.S. Uber rides or Uber Eats orders ($120/year). Add your Gold Card to your Uber account and select an Amex card for your transaction.",
-                    dollarAmount: 10, period: .monthly, category: .dining),
+                    dollarAmount: 10, period: .monthly),
                 CatalogBenefit(
                     name: "Dining Credit",
                     description: "Up to $10/month ($120/year) in statement credits at Grubhub, The Cheesecake Factory, Goldbelly, Wine.com, and Five Guys. Enrollment required.",
-                    dollarAmount: 10, period: .monthly, category: .miscellaneous),
+                    dollarAmount: 10, period: .monthly),
                 CatalogBenefit(
                     name: "Dunkin' Credit",
                     description: "Up to $7/month ($84/year) in statement credits at U.S. Dunkin' locations after enrollment.",
-                    dollarAmount: 7, period: .monthly, category: .miscellaneous),
+                    dollarAmount: 7, period: .monthly),
+                
+                //semi-annually
                 CatalogBenefit(
                     name: "Resy Credit",
                     description: "Up to $50 semi-annually ($100/year) in statement credits at U.S. Resy restaurants. Enrollment required.",
-                    dollarAmount: 50, period: .semiAnnually, category: .dining),
+                    dollarAmount: 50, period: .semiAnnually),
+                
+                //annually
+                CatalogBenefit(name: "Hertz Five Star Status", description: "Complimentary Hertz Five Star Status", dollarAmount: 0, period: .annually, category: .miscellaneous),
+                CatalogBenefit(name: "The Hotel Collection", description: "Enjoy $100 credit for eligible charges at hotels part of The Hotel Collection during a two-night minimum stay.", dollarAmount: 100, period: .annually, category: .travel),
             ]
         ),
 
@@ -108,7 +120,7 @@ struct CreditCardCatalog {
                 CatalogBenefit(
                     name: "Disney Bundle Credit",
                     description: "Up to $10/month ($120/year) in statement credits for Disney+, Hulu, or ESPN+ bundle subscription purchases at DisneyPlus.com, Hulu.com, or Stream.ESPN.com. Enrollment required.",
-                    dollarAmount: 10, period: .monthly, category: .entertainment),
+                    dollarAmount: 10, period: .monthly),
             ]
         ),
 
@@ -123,15 +135,16 @@ struct CreditCardCatalog {
                 CatalogBenefit(
                     name: "Hilton Resort Credit",
                     description: "Up to $200 in statement credits semi-annually ($400/year) for eligible purchases at Hilton Resorts worldwide charged to your Aspire Card.",
-                    dollarAmount: 200, period: .semiAnnually, category: .travel),
+                    dollarAmount: 200, period: .semiAnnually),
                 CatalogBenefit(
                     name: "Flight Credit",
                     description: "Up to $50 each quarter ($200/year) in statement credits for eligible flight purchases booked directly with airlines or through amextravel.com.",
-                    dollarAmount: 100, period: .quarterly, category: .travel),
+                    dollarAmount: 50, period: .quarterly),
                 CatalogBenefit(
                     name: "Free Night Reward",
                     description: "Earn one Free Night Reward each card anniversary year. Redeemable at most Hilton portfolio properties worldwide.",
                     dollarAmount: 0, period: .annually, category: .miscellaneous),
+                CatalogBenefit(name: "CLEAR+ Credit", description: "$209 annually for CLEAR+. See terms and conditions.", dollarAmount: 209, period: .annually, category: .travel),
             ]
         ),
 
@@ -145,11 +158,12 @@ struct CreditCardCatalog {
                 CatalogBenefit(
                     name: "Hilton Honors Free Night Reward",
                     description: "Earn one Free Night Reward after spending $15,000 on eligible purchases on your Card in a calendar year (up to 100,000 Hilton Honors points value).",
-                    dollarAmount: 100, period: .annually, category: .miscellaneous),
+                    dollarAmount: 0, period: .annually),
                 CatalogBenefit(
                     name: "Hilton Credit",
                     description: "Up to $50/quarter ($200/year) in statement credits for eligible purchases at Hilton Honors participating hotels, including rooms, dining, and spa, when using your Surpass Card.",
-                    dollarAmount: 50, period: .quarterly, category: .dining),
+                    dollarAmount: 50, period: .quarterly),
+                CatalogBenefit(name: "Nation Car Rental Emerald Clb Executive Status", description: "Earn complimentary status with National Car Rental including perks like Execute Area Access.", dollarAmount: 0, period: .annually, category: .travel),
             ]
         ),
 
@@ -159,7 +173,9 @@ struct CreditCardCatalog {
             annualFee: 0,
             imageName: "amex_hilton_honors",
             accentColor: "#3C5A9A",
-            benefits: []
+            benefits: [
+                CatalogBenefit(name: "Hilton Honors Silver Status", description: "Enjoy complimentary Hilton Honors Silver Status", dollarAmount: 0, period: .annually, category: .miscellaneous),
+            ]
         ),
 
         // ─────────────────────────────────────────────────────────────────
@@ -177,7 +193,7 @@ struct CreditCardCatalog {
                 CatalogBenefit(
                     name: "Annual Travel Credit",
                     description: "Up to $300/year in statement credits automatically applied to travel purchases (taxis, Uber, trains, flights, hotels, campground fees, and more).",
-                    dollarAmount: 300, period: .annually, category: .travel),
+                    dollarAmount: 300, period: .annually),
                 CatalogBenefit(
                     name: "Global Entry / TSA PreCheck / NEXUS Credit",
                     description: "Up to $120 statement credit every 4 years for Global Entry, TSA PreCheck®, or NEXUS application fee.",
@@ -185,37 +201,42 @@ struct CreditCardCatalog {
                 // Semi-annually
                 CatalogBenefit(
                     name: "The Edit Hotel Credit",
-                    description: "Up to $250 semi-annually ($500/year) toward bookings at The Edit — 1,000+ high-end hotels and resorts through Chase Travel.",
-                    dollarAmount: 250, period: .semiAnnually, category: .travel),
+                    description: "Up to $500 toward bookings at The Edit — 1,000+ high-end hotels and resorts through Chase Travel, with complimentary benefits like $100 property credit, breakfast for two, a room upgrade and more. Two-night minimum, max of $250 per transaction.",
+                    dollarAmount: 500, period: .annually, category: .travel),
                 CatalogBenefit(
                     name: "Sapphire Reserve Exclusive Tables Dining Credit",
                     description: "Up to $150 semi-annually ($300/year) for dining at restaurants participating in the Sapphire Reserve Exclusive Tables program.",
-                    dollarAmount: 150, period: .semiAnnually, category: .dining),
+                    dollarAmount: 150, period: .semiAnnually),
+                CatalogBenefit(name: "$250 Credit Chase Travel Hotels", description: "$250 in statement credit for stays with IHG, Montage, Pendy, Omni, and more. Two-night minimum required. Can stack with the Edit!", dollarAmount: 250, period: .annually, category: .travel),
+                CatalogBenefit(name: "IHG One Rewards Platinum Elite Status", description: "Enjoy Platinum Elite Status by linking your IHG One Rewards membership.", dollarAmount: 0, period: .annually, category: .miscellaneous),
+                CatalogBenefit(name: "Global Entry, TSA PreCheck, or NEXUS credit", description: "Receive $120 every four years as a reimbursement for the application fee at any of these partners.", dollarAmount: 120, period: .annually, category: .travel),
                 CatalogBenefit(
                     name: "StubHub / viagogo Credit",
                     description: "Up to $150 semi-annually ($300/year) for ticket purchases on StubHub and viagogo.",
-                    dollarAmount: 150, period: .semiAnnually, category: .entertainment),
+                    dollarAmount: 150, period: .semiAnnually),
                 CatalogBenefit(
                     name: "Apple TV+ & Apple Music Credit",
-                    description: "Up to $125 semi-annually ($250/year) toward Apple TV+ and Apple Music subscriptions.",
-                    dollarAmount: 125, period: .semiAnnually, category: .entertainment),
+                    description: "Complimentary subscriptions to Apple TV and Apple Music, a value of $288 annually.",
+                    dollarAmount: 288, period: .annually, category: .entertainment),
                 // Monthly
                 CatalogBenefit(
                     name: "Lyft Credit",
                     description: "Up to $10/month ($120/year) in Lyft credits through September 30, 2027.",
-                    dollarAmount: 10, period: .monthly, category: .miscellaneous),
+                    dollarAmount: 10, period: .monthly),
                 CatalogBenefit(
                     name: "DoorDash Restaurant Credit",
-                    description: "$5/month promo on restaurant DoorDash orders (plus free DashPass subscription valued at ~$120/year). Activate DashPass to unlock.",
+                    description: "$5/month promo on restaurant DoorDash orders.",
                     dollarAmount: 5, period: .monthly, category: .dining),
                 CatalogBenefit(
                     name: "DoorDash Non-Restaurant Credit",
                     description: "Two $10/month promos ($20/month) on non-restaurant DoorDash orders (groceries, beauty, electronics, etc.).",
-                    dollarAmount: 20, period: .monthly, category: .dining),
-                CatalogBenefit(
+                    dollarAmount: 20, period: .monthly),
+                CatalogBenefit(name: "Complimentary DashPass", description: "Complimentary DashPass subscription (value ~$10/month) unlocking $0 delivery fees and lower service fees. Activate by 12/31/27.", dollarAmount: 120, period: .annually),, category: .miscellaneous)                CatalogBenefit(
                     name: "Peloton Credit",
                     description: "Up to $10/month ($120/year) toward an eligible Peloton membership.",
-                    dollarAmount: 10, period: .monthly, category: .entertainment),
+                    dollarAmount: 10, period: .monthly),
+                CatalogBenefit(name: "Chase Sapphire Reserve Lounge Network", description: "Enjoy complimentary access to every Chase Sapphire Lounge by The Club with up to two guests, plus access to 1,300+ Priority Pass lounges worldwide.", dollarAmount: 0, period: .annually, category: .travel),
+                
             ]
         ),
 
@@ -233,7 +254,8 @@ struct CreditCardCatalog {
                 CatalogBenefit(
                     name: "DoorDash DashPass Credit",
                     description: "Complimentary DashPass subscription (value ~$10/month) unlocking $0 delivery fees and lower service fees. Activate by 12/31/27.",
-                    dollarAmount: 10, period: .monthly, category: .miscellaneous),
+                    dollarAmount: 10, period: .monthly),
+                CatalogBenefit(name: "DashPass Spend Credit", description: "Enjoy $10 a month to save on orders through DoorDash.", dollarAmount: 10, period: .monthly, category: .miscellaneous),
             ]
         ),
 
@@ -256,7 +278,7 @@ struct CreditCardCatalog {
                 CatalogBenefit(
                     name: "5% Quarterly Rotating Categories",
                     description: "5% cash back on up to $1,500 in combined purchases in rotating quarterly categories (e.g., grocery stores, gas stations, select streaming, Amazon, etc.). Activation required each quarter.",
-                    dollarAmount: 75, period: .quarterly, category: .shopping),
+                    dollarAmount: 75, period: .quarterly),
             ]
         ),
 
@@ -287,11 +309,17 @@ struct CreditCardCatalog {
                 CatalogBenefit(
                     name: "Anniversary Miles Bonus",
                     description: "Earn 10,000 bonus miles (= $100 toward travel) every year starting on your first anniversary.",
-                    dollarAmount: 100, period: .annually, category: .travel),
+                    dollarAmount: 100, period: .annually),
                 CatalogBenefit(
                     name: "Global Entry / TSA PreCheck Credit",
                     description: "Up to $120 statement credit every 4 years for Global Entry or TSA PreCheck® application fee.",
                     dollarAmount: 120, period: .annually, category: .travel),
+                CatalogBenefit(name: "Capital One Lounge Network", description: "Complimentary access to the Capital One Lounge and Priority Pass Lounges.", dollarAmount: 0, period: .annually, category: .travel),
+                CatalogBenefit(name: "Herz President's Circle Status", description: "Enjoy complimentary access to the Hertz President's Circle.", dollarAmount: 0, period: .annually, category: .miscellaneous),
+                CatalogBenefit(name: "Premier Hotel $100 Credit", description: "Enjoy $100 credit for experiences at eligible hotels.", dollarAmount: 100, period: .annually, category: .travel),
+                CatalogBenefit(name: "Lifestyle Hotel $50 Credit", description: "Enjoy $50 credit for experiences at eligible hotels.", dollarAmount: 50, period: .annually, category: .travel),
+                CatalogBenefit(name: "PRIOR Subscription", description: "Enjoy a complimentary subscription to PRIOR magazine.", dollarAmount: 149, period: .annually, category: .miscellaneous),
+                CatalogBenefit(name: "Discounted Membership to the Cultivist", description: "50% off the Enthusiast membership for up to two years.", dollarAmount: 220, period: .annually, category: .miscellaneous),
             ]
         ),
 
@@ -332,7 +360,8 @@ struct CreditCardCatalog {
                 CatalogBenefit(
                     name: "Annual Hotel Savings Benefit",
                     description: "$100 off a single hotel stay of $500 or more (excluding taxes and fees) booked through thankyou.com once per calendar year.",
-                    dollarAmount: 100, period: .annually, category: .travel),
+                    dollarAmount: 100, period: .annually),
+                CatalogBenefit(name: "The Reserve from Citi", description: "$100 experience credit, breakfast for two, and free wifi at select hotels.", dollarAmount: 100, period: .annually, category: .travel),
             ]
         ),
 
@@ -372,7 +401,7 @@ struct CreditCardCatalog {
                 CatalogBenefit(
                     name: "5% Quarterly Rotating Categories",
                     description: "5% cash back on up to $1,500 in purchases each quarter in rotating categories (e.g., grocery stores, restaurants, gas stations, Amazon). Activation required each quarter.",
-                    dollarAmount: 75, period: .quarterly, category: .dining),
+                    dollarAmount: 75, period: .quarterly),
             ]
         ),
 
@@ -390,7 +419,7 @@ struct CreditCardCatalog {
                 CatalogBenefit(
                     name: "Annual Airline Credit",
                     description: "Up to $50/year in statement credits toward airline purchases (airfare, seat upgrades, in-flight purchases, and more).",
-                    dollarAmount: 50, period: .annually, category: .dining),
+                    dollarAmount: 50, period: .annually),
                 CatalogBenefit(
                     name: "Annual Hotel Credit",
                     description: "Earn an additional $50 statement credit when you spend $50 or more on hotel purchases in a calendar year.",
@@ -412,11 +441,11 @@ struct CreditCardCatalog {
                 CatalogBenefit(
                     name: "Airline Incidental Credit",
                     description: "Up to $300/year in statement credits for incidental airline purchases (seat upgrades, baggage fees, lounge day passes, etc.).",
-                    dollarAmount: 300, period: .annually, category: .dining),
+                    dollarAmount: 300, period: .annually),
                 CatalogBenefit(
                     name: "Lifestyle Credit",
                     description: "Up to $150/year for qualifying lifestyle purchases (fitness clubs, streaming services, and more).",
-                    dollarAmount: 150, period: .annually, category: .entertainment),
+                    dollarAmount: 150, period: .annually),
                 CatalogBenefit(
                     name: "Global Entry / TSA PreCheck Credit",
                     description: "Up to $100 credit every 4 years for Global Entry or TSA PreCheck® application fee.",
@@ -438,7 +467,7 @@ struct CreditCardCatalog {
                 CatalogBenefit(
                     name: "Real-Time Mobile Wallet & Travel Credit",
                     description: "Up to $325/year in statement credits for eligible mobile wallet (Apple Pay, Google Pay, Samsung Pay) and travel purchases. Automatically applied.",
-                    dollarAmount: 325, period: .annually, category: .travel),
+                    dollarAmount: 325, period: .annually),
             ]
         ),
     ] + supplementalCards

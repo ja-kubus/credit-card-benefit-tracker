@@ -14,6 +14,7 @@ struct BenefitsView: View {
     @Query private var completions: [BenefitCompletion]
 
     @State private var selectedPeriod: BenefitPeriod = .monthly
+    @State private var expandedCategories: Set<BenefitCategory> = Set(BenefitCategory.allCases)
 
     var body: some View {
         NavigationStack {
@@ -45,18 +46,58 @@ struct BenefitsView: View {
     // MARK: - Benefits List
 
     private var benefitsList: some View {
-        let items = benefitItems(for: selectedPeriod)
+        let itemsByCategory = benefitItemsByCategory(for: selectedPeriod)
+        let hasAnyBenefits = itemsByCategory.values.contains { !$0.isEmpty }
+        
         return Group {
-            if items.isEmpty {
+            if !hasAnyBenefits {
                 emptyBenefits
             } else {
                 List {
-                    ForEach(items, id: \.completion.id) { item in
-                        BenefitRow(
-                            cardName: item.cardName,
-                            catalogBenefit: item.benefit,
-                            completion: item.completion
-                        )
+                    ForEach(BenefitCategory.allCases, id: \.self) { category in
+                        DisclosureGroup(
+                            isExpanded: Binding(
+                                get: { expandedCategories.contains(category) },
+                                set: { isExpanded in
+                                    if isExpanded {
+                                        expandedCategories.insert(category)
+                                    } else {
+                                        expandedCategories.remove(category)
+                                    }
+                                }
+                            )
+                        ) {
+                            let items = itemsByCategory[category] ?? []
+                            if items.isEmpty {
+                                Text("No benefits in this category")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.vertical, 8)
+                            } else {
+                                ForEach(items, id: \.completion.id) { item in
+                                    BenefitRow(
+                                        cardName: item.cardName,
+                                        catalogBenefit: item.benefit,
+                                        completion: item.completion
+                                    )
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: 12) {
+                                Circle()
+                                    .fill(category.color)
+                                    .frame(width: 12, height: 12)
+                                Text(category.rawValue)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                let count = itemsByCategory[category]?.count ?? 0
+                                Text("\(count)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 4)
+                        }
                     }
                 }
                 .listStyle(.insetGrouped)
@@ -80,18 +121,32 @@ struct BenefitsView: View {
         let completion: BenefitCompletion
     }
 
-    private func benefitItems(for period: BenefitPeriod) -> [BenefitItem] {
-        var result: [BenefitItem] = []
+    private func benefitItemsByCategory(for period: BenefitPeriod) -> [BenefitCategory: [BenefitItem]] {
+        var result: [BenefitCategory: [BenefitItem]] = [:]
+        
+        // Initialize all categories
+        for category in BenefitCategory.allCases {
+            result[category] = []
+        }
+        
         for card in userCards {
             guard let catalog = CreditCardCatalog.all.first(where: { $0.id == card.catalogCardID }) else { continue }
             let periodBenefits = catalog.benefits.filter { $0.period == period }
             for benefit in periodBenefits {
                 if let comp = card.completions.first(where: { $0.benefitName == benefit.name && $0.benefitPeriod == period }) {
-                    result.append(BenefitItem(cardName: card.name, benefit: benefit, completion: comp))
+                    let item = BenefitItem(cardName: card.name, benefit: benefit, completion: comp)
+                    result[benefit.category, default: []].append(item)
                 }
             }
         }
-        return result.sorted { $0.cardName < $1.cardName }
+        
+        // Sort within each category by card name
+        for (key, var items) in result {
+            items.sort { $0.cardName < $1.cardName }
+            result[key] = items
+        }
+        
+        return result
     }
 
     private func resetExpiredCompletions() {
