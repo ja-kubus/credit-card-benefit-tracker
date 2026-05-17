@@ -12,8 +12,12 @@ struct AddCardView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Query private var userCards: [UserCard]
+    @Query private var notificationSettings: [NotificationSettings]
 
     @State private var searchText = ""
+    @State private var showNotificationPermission = false
+    @State private var cardPendingNotificationDecision: CatalogCard?
+    @State private var rememberNotificationPreference = false
 
     private var ownedIDs: Set<String> {
         Set(userCards.map(\.catalogCardID))
@@ -47,7 +51,7 @@ struct AddCardView: View {
                                 ForEach(group.cards) { card in
                                     let isOwned = ownedIDs.contains(card.id)
                                     CatalogCardRow(card: card, isOwned: isOwned) {
-                                        addCard(card)
+                                        initiateCardAddition(card)
                                     }
                                 }
                             }
@@ -65,16 +69,64 @@ struct AddCardView: View {
                 }
             }
         }
+        .sheet(isPresented: $showNotificationPermission) {
+            if let catalogCard = cardPendingNotificationDecision {
+                NotificationPermissionView(
+                    cardName: catalogCard.name,
+                    cardIssuer: catalogCard.issuer,
+                    onAllow: { shouldRemember in
+                        addCard(catalogCard, withNotifications: true)
+                        if shouldRemember {
+                            rememberNotificationPreference = true
+                            updateNotificationDefaults(enabled: true)
+                        }
+                        showNotificationPermission = false
+                    },
+                    onDeny: {
+                        addCard(catalogCard, withNotifications: false)
+                        showNotificationPermission = false
+                    }
+                )
+                .presentationDetents([.medium])
+            }
+        }
     }
 
-    private func addCard(_ catalog: CatalogCard) {
+    private func initiateCardAddition(_ catalog: CatalogCard) {
+        // Check if we should ask for notification permission
+        let settings = notificationSettings.first
+        if rememberNotificationPreference || settings?.rememberNotificationPreference == true {
+            // User already made a choice, use their default
+            let defaultEnabled = settings?.notificationsEnabled ?? true
+            addCard(catalog, withNotifications: defaultEnabled)
+        } else {
+            // Show permission dialog
+            cardPendingNotificationDecision = catalog
+            showNotificationPermission = true
+        }
+    }
+
+    private func addCard(_ catalog: CatalogCard, withNotifications: Bool) {
         let card = UserCard(from: catalog)
+        card.notificationsEnabled = withNotifications
         modelContext.insert(card)
 
         for benefit in catalog.benefits {
             let completion = BenefitCompletion(cardID: card.catalogCardID, benefit: benefit)
             modelContext.insert(completion)
             card.completions.append(completion)
+        }
+    }
+    
+    private func updateNotificationDefaults(enabled: Bool) {
+        if let settings = notificationSettings.first {
+            settings.notificationsEnabled = enabled
+            settings.rememberNotificationPreference = true
+        } else {
+            let newSettings = NotificationSettings()
+            newSettings.notificationsEnabled = enabled
+            newSettings.rememberNotificationPreference = true
+            modelContext.insert(newSettings)
         }
     }
 }

@@ -137,6 +137,7 @@ final class UserCard {
     var imageName: String
     var accentColor: String
     var dateAdded: Date
+    var notificationsEnabled: Bool = true
 
     @Relationship(deleteRule: .cascade) var completions: [BenefitCompletion] = []
 
@@ -161,6 +162,7 @@ final class BenefitCompletion {
     var period: String          // BenefitPeriod.rawValue
     var isCompleted: Bool
     var resetDate: Date
+    var missedCount: Int = 0    // Tracks how many times benefit wasn't used before reset
 
     init(cardID: String, benefit: CatalogBenefit) {
         self.cardID             = cardID
@@ -178,11 +180,24 @@ final class BenefitCompletion {
     }
 
     /// Resets the checkbox if the current date has passed the resetDate.
+    /// Increments missedCount if the benefit was not completed before reset.
     func resetIfNeeded() {
         guard Date() >= resetDate else { return }
+        // If benefit wasn't completed, increment missed count
+        if !isCompleted {
+            missedCount += 1
+        }
         isCompleted = false
         resetDate   = benefitPeriod.nextResetDate(from: resetDate)
     }
+}
+
+@Model
+final class NotificationSettings {
+    var notificationsEnabled: Bool = true
+    var rememberNotificationPreference: Bool = false
+    
+    init() {}
 }
 
 // MARK: - Color Helper

@@ -11,6 +11,7 @@ import SwiftData
 struct CardsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \UserCard.dateAdded) private var userCards: [UserCard]
+    @State private var isDragging = false
     @State private var showingAddCard = false
     // Sheet trigger — only set when we want to open the detail view
     @State private var selectedCard: UserCard? = nil
@@ -232,6 +233,10 @@ struct CardsView: View {
                 }
                 .padding(.top, 12)
                 .padding(.bottom, 32)
+                .gesture(DragGesture(minimumDistance: 30)
+                    .onChanged { gesture in
+                        if !isDragging { isDragging = true }
+                    })
             }
 
             Spacer()

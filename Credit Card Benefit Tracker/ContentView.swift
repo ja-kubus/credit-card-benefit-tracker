@@ -20,11 +20,16 @@ struct ContentView: View {
                 .tabItem {
                     Label("Benefits", systemImage: "checkmark.seal.fill")
                 }
+            SettingsView()
+                .tabItem{
+                    Label("Settings", systemImage: "gearshape.fill")
+                }
+            
         }
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: [UserCard.self, BenefitCompletion.self], inMemory: true)
+        .modelContainer(for: [UserCard.self, BenefitCompletion.self, NotificationSettings.self], inMemory: true)
 }
