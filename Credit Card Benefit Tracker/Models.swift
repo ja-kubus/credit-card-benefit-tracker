@@ -163,6 +163,9 @@ final class BenefitCompletion {
     var isCompleted: Bool
     var resetDate: Date
     var missedCount: Int = 0    // Tracks how many times benefit wasn't used before reset
+    var partialUsage: String = ""  // e.g., "250" for $250 used out of available
+    var isIgnored: Bool = false    // When true, benefit is not counted in missed notifications
+    var benefitStartDate: Date?     // Anniversary date for annual benefits (e.g., card opening date)
 
     init(cardID: String, benefit: CatalogBenefit) {
         self.cardID             = cardID
@@ -173,22 +176,59 @@ final class BenefitCompletion {
         self.period             = benefit.period.rawValue
         self.isCompleted        = false
         self.resetDate          = benefit.period.nextResetDate()
+        self.partialUsage       = ""
+        self.isIgnored          = false
+        self.benefitStartDate   = nil
     }
 
     var benefitPeriod: BenefitPeriod {
         BenefitPeriod(rawValue: period) ?? .annually
     }
+    
+    /// Returns true if the benefit has any usage (completed or partial usage entered)
+    var hasAnyUsage: Bool {
+        isCompleted || !partialUsage.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+    
+    /// For annual benefits, calculates the next reset date based on the anniversary date
+    func getNextAnniversaryDate(from date: Date = Date()) -> Date {
+        guard benefitPeriod == .annually, let startDate = benefitStartDate else {
+            return benefitPeriod.nextResetDate(from: date)
+        }
+        
+        let calendar = Calendar.current
+        let startMonth = calendar.component(.month, from: startDate)
+        let startDay = calendar.component(.day, from: startDate)
+        let currentYear = calendar.component(.year, from: date)
+        
+        // Try to create anniversary date this year
+        var components = DateComponents(year: currentYear, month: startMonth, day: startDay)
+        if let anniversaryThisYear = calendar.date(from: components), anniversaryThisYear > date {
+            return anniversaryThisYear
+        }
+        
+        // Otherwise, use next year
+        components.year = currentYear + 1
+        return calendar.date(from: components) ?? benefitPeriod.nextResetDate(from: date)
+    }
 
     /// Resets the checkbox if the current date has passed the resetDate.
-    /// Increments missedCount if the benefit was not completed before reset.
+    /// Increments missedCount if the benefit was not completed before reset (and not ignored).
     func resetIfNeeded() {
         guard Date() >= resetDate else { return }
-        // If benefit wasn't completed, increment missed count
-        if !isCompleted {
+        // If benefit wasn't used and not ignored, increment missed count
+        if !hasAnyUsage && !isIgnored {
             missedCount += 1
         }
         isCompleted = false
-        resetDate   = benefitPeriod.nextResetDate(from: resetDate)
+        partialUsage = ""
+        
+        // Use anniversary date for annual benefits if set, otherwise use period-based reset
+        if benefitPeriod == .annually, let _ = benefitStartDate {
+            resetDate = getNextAnniversaryDate(from: resetDate)
+        } else {
+            resetDate = benefitPeriod.nextResetDate(from: resetDate)
+        }
     }
 }
 
