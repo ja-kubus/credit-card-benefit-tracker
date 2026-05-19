@@ -140,6 +140,7 @@ final class UserCard {
     var notificationsEnabled: Bool = true
 
     @Relationship(deleteRule: .cascade) var completions: [BenefitCompletion] = []
+    @Relationship(deleteRule: .cascade) var statements: [Statement] = []
 
     init(from catalog: CatalogCard) {
         self.catalogCardID = catalog.id
@@ -229,6 +230,61 @@ final class BenefitCompletion {
         } else {
             resetDate = benefitPeriod.nextResetDate(from: resetDate)
         }
+    }
+}
+
+// MARK: - Statement Data Models
+
+@Model
+final class Statement {
+    var cardID: String
+    var fileName: String
+    var uploadDate: Date
+    var statementMonth: Date  // For organizing statements by month/year
+    var uploadHash: String    // Hash to prevent duplicate uploads
+    var issuers: String       // Store as string for now
+    
+    @Relationship(deleteRule: .cascade) var rows: [StatementRow] = []
+
+    init(cardID: String, fileName: String, issuer: String) {
+        self.cardID = cardID
+        self.fileName = fileName
+        let now = Date()
+        self.uploadDate = now
+        self.statementMonth = now
+        let hashInput = "\(cardID)_\(fileName)_\(now.timeIntervalSince1970)"
+        self.uploadHash = String(hashInput.hashValue)
+        self.issuers = issuer
+    }
+}
+
+@Model
+final class StatementRow {
+    var transactionDate: Date
+    var category: String      // e.g., "Restaurants", "Supermarkets", "Flights", "Hotels", "Other"
+    var amount: Double        // Dollar amount spent
+    var transactionDescription: String   // Optional description from statement
+
+    init(transactionDate: Date, category: String, amount: Double, transactionDescription: String = "") {
+        self.transactionDate = transactionDate
+        self.category = category
+        self.amount = amount
+        self.transactionDescription = transactionDescription
+    }
+}
+
+// MARK: - Earning Rate Model
+
+// This represents a multiplier for earning points
+struct EarningRate: Codable {
+    let multiplier: Double  // e.g., 4.0 for 4x points
+    let category: String    // e.g., "Restaurants", "Flights"
+    let description: String // Full description from catalog
+    
+    init(multiplier: Double, category: String, description: String) {
+        self.multiplier = multiplier
+        self.category = category
+        self.description = description
     }
 }
 

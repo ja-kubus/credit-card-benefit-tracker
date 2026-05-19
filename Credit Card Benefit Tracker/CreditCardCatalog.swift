@@ -892,7 +892,7 @@ struct CreditCardCatalog {
             return [
                 "10x miles on hotels and rental cars booked through Capital One Travel.",
                 "5x miles on flights and vacation rentals booked through Capital One Travel.",
-                "2x miles on every purchase."
+                "2x miles on every eligible purchase."
             ]
         case "capital_one_venture":
             return ["2x miles on every purchase."]
@@ -1057,6 +1057,12 @@ struct CreditCardCatalog {
                 "5% cash back on Chase Travel purchases.",
                 "2% cash back at restaurants, gas stations, and select streaming services.",
                 "1% cash back on other purchases."
+            ]
+        case "apple_apple_card":
+            return [
+                "3x cash back on Apple and rotating categories.",
+                "2x cash back on purchases made with Apple Pay.",
+                "1x cash back on the physical Apple Card."
             ]
         default:
             return []
