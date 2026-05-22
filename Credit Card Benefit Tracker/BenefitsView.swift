@@ -15,10 +15,45 @@ struct BenefitsView: View {
 
     @State private var selectedPeriod: BenefitPeriod = .monthly
     @State private var expandedCategories: Set<BenefitCategory> = Set(BenefitCategory.allCases)
+    @State private var selectedCardIds: Set<PersistentIdentifier> = []
+    @State private var showCardFilter = false
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                // Card filtering dropdown
+                VStack(spacing: 12) {
+                    HStack {
+                        Text("Filter by Card")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        
+                        Spacer()
+                        
+                        Button {
+                            showCardFilter = true
+                        } label: {
+                            HStack {
+                                let selectedCount = selectedCardIds.isEmpty ? userCards.count : selectedCardIds.count
+                                let totalCount = userCards.count
+                                Text("\(selectedCount) of \(totalCount) cards")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.blue)
+                                
+                                Image(systemName: "chevron.down")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                .padding(.vertical, 12)
+                .background(Color(.secondarySystemGroupedBackground))
+                .sheet(isPresented: $showCardFilter) {
+                    CardFilterSheet(selectedCardIds: $selectedCardIds, userCards: userCards, isPresented: $showCardFilter)
+                }
+                
                 periodPicker
                     .padding(.horizontal)
                     .padding(.top, 8)
@@ -28,7 +63,13 @@ struct BenefitsView: View {
                 benefitsList
             }
             .navigationTitle("Benefits")
-            .onAppear { resetExpiredCompletions() }
+            .onAppear { 
+                resetExpiredCompletions()
+                // Initialize with all cards selected
+                if selectedCardIds.isEmpty {
+                    selectedCardIds = Set(userCards.map { $0.persistentModelID })
+                }
+            }
         }
     }
 
@@ -129,11 +170,15 @@ struct BenefitsView: View {
             result[category] = []
         }
         
+        // If no cards selected, show nothing. Otherwise show selected cards.
+        let cardsToShow = selectedCardIds.isEmpty ? Set<PersistentIdentifier>() : selectedCardIds
+        
         for card in userCards {
+            guard cardsToShow.contains(card.persistentModelID) else { continue }
             guard let catalog = CreditCardCatalog.all.first(where: { $0.id == card.catalogCardID }) else { continue }
             let periodBenefits = catalog.benefits.filter { $0.period == period }
             for benefit in periodBenefits {
-                // Try to find existing completion
+                // ...existing code...
                 var comp = card.completions.first(where: { $0.benefitName == benefit.name && $0.benefitPeriod == period })
                 
                 // If no completion exists, create one (handles cases where benefits were added after card was added)
@@ -493,6 +538,103 @@ struct AnniversaryDatePickerView: View {
             }
         }
         .presentationDetents([.medium])
+    }
+}
+
+// MARK: - Card Filter Sheet
+
+struct CardFilterSheet: View {
+    @Binding var selectedCardIds: Set<PersistentIdentifier>
+    let userCards: [UserCard]
+    @Binding var isPresented: Bool
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // Select All / Deselect All buttons at top
+                HStack(spacing: 12) {
+                    Button(action: {
+                        selectedCardIds = Set(userCards.map { $0.persistentModelID })
+                    }) {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.caption.weight(.semibold))
+                            Text("Select All")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.blue)
+                        .foregroundStyle(.white)
+                        .cornerRadius(8)
+                    }
+                    
+                    Button(action: {
+                        selectedCardIds.removeAll()
+                    }) {
+                        HStack {
+                            Image(systemName: "circle")
+                                .font(.caption.weight(.semibold))
+                            Text("Deselect All")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.gray.opacity(0.3))
+                        .foregroundStyle(.gray)
+                        .cornerRadius(8)
+                    }
+                }
+                .padding(12)
+                
+                Divider()
+                
+                // Card list
+                List {
+                    // Group cards by issuer
+                    let cardsByIssuer = Dictionary(grouping: userCards) { $0.issuer }
+                    let sortedIssuers = cardsByIssuer.keys.sorted()
+                    
+                    ForEach(sortedIssuers, id: \.self) { issuer in
+                        Section(issuer) {
+                            ForEach(cardsByIssuer[issuer] ?? [], id: \.persistentModelID) { card in
+                                let isSelected = selectedCardIds.contains(card.persistentModelID)
+                                
+                                Button(action: {
+                                    if isSelected {
+                                        selectedCardIds.remove(card.persistentModelID)
+                                    } else {
+                                        selectedCardIds.insert(card.persistentModelID)
+                                    }
+                                }) {
+                                    HStack {
+                                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                            .foregroundStyle(isSelected ? .blue : .gray)
+                                        Text(card.name)
+                                            .foregroundStyle(.primary)
+                                        Spacer()
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+                .listStyle(.insetGrouped)
+            }
+            .navigationTitle("Filter by Card")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        isPresented = false
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }
 

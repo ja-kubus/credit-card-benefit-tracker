@@ -362,6 +362,17 @@ class StatementParser {
         var currentMerchant = ""
         var linesSinceDate = 0
         
+        // DEBUG: Show lines around potential section headers
+        for (index, line) in lines.enumerated() {
+            let lower = line.lowercased()
+            if lower.contains("detail") || lower.contains("transactions") || lower.contains("statement") {
+                print("      [Line \(index)]: \(line.prefix(100))")
+            }
+        }
+        
+        let datePattern = "^(0?[1-9]|1[0-2])/(0?[1-9]|[12][0-9]|3[01])/\\d{2,4}"
+        let dateRegex = try? NSRegularExpression(pattern: datePattern)
+        
         for (index, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             
@@ -369,22 +380,43 @@ class StatementParser {
             if trimmed.isEmpty { continue }
             
             // Look for the NEW CHARGES transaction section header
-            if trimmed.lowercased().contains("detail") &&
-               trimmed.contains("⧫") &&
-               trimmed.lowercased().contains("cash advance") {
+            // Support multiple formats:
+            // 1. "DETAIL ⧫ CASH ADVANCE" (standard Amex)
+            // 2. Just "DETAIL" with diamond symbol somewhere on line
+            // 3. "TRANSACTIONS" (for Aspire/other variants)
+            let lowerTrimmed = trimmed.lowercased()
+            let hasDetailMarker = lowerTrimmed.contains("detail") && trimmed.contains("⧫")
+            let hasTransactionMarker = lowerTrimmed.contains("transactions")
+            
+            if hasDetailMarker || (hasTransactionMarker && lowerTrimmed.contains("charge")) {
                 inTransactionSection = true
-                print("      📍 Found transaction section at line \(index): \(trimmed)")
+                print("      📍 Found transaction section (header) at line \(index): \(trimmed)")
                 continue
+            }
+            
+            // Fallback: if we haven't found a section header yet, and we're past line 50 (past any preamble),
+            // and we find a date line, that's likely the start of transactions
+            if !inTransactionSection && index > 50 && !lowerTrimmed.contains("name") && !lowerTrimmed.contains("address") {
+                if let regex = dateRegex {
+                    let range = NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)
+                    if regex.firstMatch(in: trimmed, range: range) != nil {
+                        inTransactionSection = true
+                        print("      📍 Found transaction section (date fallback) at line \(index): \(trimmed.prefix(80))")
+                        // Don't continue - process this line as a date
+                    }
+                }
             }
             
             // Stop at section end markers
             if inTransactionSection && (trimmed.lowercased().contains("continued on next page") ||
                                        trimmed.lowercased().contains("continued on reverse") ||
-                                       trimmed.lowercased().contains("fees") ||
+                                       trimmed.lowercased().contains("fees charged") ||
                                        trimmed.lowercased().contains("interest charged") ||
-                                       trimmed.lowercased().contains("trailing interest")) {
+                                       trimmed.lowercased().contains("trailing interest") ||
+                                       trimmed.lowercased().contains("total charges") ||
+                                       (trimmed.lowercased().contains("total") && trimmed.contains("$"))) {
                 inTransactionSection = false
-                print("      🛑 Reached end of transactions at line \(index)")
+                print("      🛑 Reached end of transactions at line \(index): \(trimmed)")
                 continue
             }
             
@@ -394,14 +426,13 @@ class StatementParser {
             if trimmed.lowercased().contains("summary") ||
                trimmed.lowercased().contains("jacob t michalik") ||
                trimmed.lowercased().contains("card ending") ||
-               trimmed.lowercased().contains("amount") && !trimmed.contains("$") ||
-               trimmed.contains("⧫") && !trimmed.contains("$") {
+               (trimmed.lowercased().contains("amount") && !trimmed.contains("$")) ||
+               (trimmed.contains("⧫") && !trimmed.contains("$")) {
                 continue
             }
             
-            // Check if line starts with a date (MM/DD/YY format)
-            let datePattern = "^(0?[1-9]|1[0-2])/(0?[1-9]|[12][0-9]|3[01])/\\d{2}"
-            if let regex = try? NSRegularExpression(pattern: datePattern) {
+            // Check if line starts with a date (MM/DD/YY or MM/DD/YYYY format)
+            if let regex = dateRegex {
                 let range = NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)
                 if regex.firstMatch(in: trimmed, range: range) != nil {
                     // Save previous transaction if exists
@@ -421,8 +452,8 @@ class StatementParser {
                 }
             }
             
-            // If we have a date and this line contains $ and diamond, it's the amount
-            if let date = currentDate, trimmed.contains("$") && trimmed.contains("⧫") {
+            // If we have a date and this line contains $ (with or without diamond), it's the amount
+            if let date = currentDate, trimmed.contains("$") {
                 if let amount = parseAmount(trimmed) {
                     let category = CategoryDetector.detect(merchant: currentMerchant, issuer: "amex")
                     let row = StatementRow(
@@ -469,7 +500,8 @@ class StatementParser {
         print("   🔍 Capital One PDF: Looking for transactions in \(lines.count) lines...")
         
         var inTransactionSection = false
-        let transactionPattern = #"^(0?[1-9]|1[0-2])/(0?[1-9]|[12][0-9]|3[01])\s+(0?[1-9]|1[0-2])/(0?[1-9]|[12][0-9]|3[01])"#
+        // Capital One uses: "Mar 18 Mar 20 Description $10.00" format
+        let datePattern = #"^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+"#
         
         for (index, line) in lines.enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -495,28 +527,32 @@ class StatementParser {
             
             if !inTransactionSection { continue }
             
-            // Check if line contains a date pattern (MM/DD MM/DD Description Amount)
-            if let regex = try? NSRegularExpression(pattern: transactionPattern) {
+            // Check if line starts with Capital One date pattern (Mon DD Mon DD)
+            if let regex = try? NSRegularExpression(pattern: datePattern, options: .caseInsensitive) {
                 let range = NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)
                 if regex.firstMatch(in: trimmed, range: range) != nil {
                     // Parse the transaction line
                     // Format: Trans Date Post Date Description Amount
                     // Example: Mar 18 Mar 20 HCTRA EZ TAG REBILL281-875-3279TX $10.00
                     
-                    // Split by spaces to find the amount (starts with $)
+                    // Split by spaces to find the amount (last $ amount)
                     let components = trimmed.split(separator: " ").map(String.init)
                     
                     // Find the amount (last component starting with $)
                     guard let amountIndex = components.lastIndex(where: { $0.starts(with: "$") }) else { continue }
                     let amountStr = components[amountIndex]
                     
-                    // The first component should be the transaction date
-                    guard let transDate = parseDate(components[0]) else { continue }
+                    // First two components are Trans Date (Mon DD)
+                    // Third component is Post Month, Fourth is Post Day
+                    // So we take components[0] + " " + components[1] as transaction date
+                    let currentYear = Calendar.current.component(.year, from: Date())
+                    let dateStr = "\(components[0]) \(components[1]) \(currentYear)"
+                    guard let transDate = parseDate(dateStr) else { continue }
                     guard let amount = parseAmount(String(amountStr)) else { continue }
                     
-                    // Description is everything between post date and amount
-                    // We need to skip Trans Date and Post Date, then take everything until amount
-                    let descriptionParts = components.dropFirst(2).dropLast()
+                    // Description is everything between post date (position 2-3) and amount
+                    // Skip Trans Date (0), Trans Day (1), Post Month (2), Post Day (3)
+                    let descriptionParts = components.dropFirst(4).dropLast()
                     let description = descriptionParts.joined(separator: " ")
                     
                     guard !description.isEmpty else { continue }
@@ -529,7 +565,7 @@ class StatementParser {
                         transactionDescription: description
                     )
                     rows.append(row)
-                    print("      ✓ Parsed: \(components[0]) | \(description) | $\(amount)")
+                    print("      ✓ Parsed: \(dateStr) | \(description) | $\(amount)")
                 }
             }
         }
@@ -800,20 +836,38 @@ class StatementParser {
                     
                     let components = trimmed.split(separator: " ").map(String.init)
                     
+                    print("      🔍 Citi line components (\(components.count)): \(components)")
+                    
                     // Find the amount (last component starting with $)
-                    guard let amountIndex = components.lastIndex(where: { $0.starts(with: "$") }) else { continue }
+                    guard let amountIndex = components.lastIndex(where: { $0.starts(with: "$") }) else {
+                        print("      ⚠️  No $ amount found in components")
+                        continue
+                    }
                     let amountStr = components[amountIndex]
                     
                     // The first component should be the transaction date
-                    guard let transDate = parseDate(components[0]) else { continue }
-                    guard let amount = parseAmount(String(amountStr)) else { continue }
+                    // Add current year since Citi PDFs don't include the year
+                    let currentYear = Calendar.current.component(.year, from: Date())
+                    let dateWithYear = "\(components[0])/\(currentYear)"
+                    
+                    guard let transDate = parseDate(dateWithYear) else {
+                        print("      ⚠️  Could not parse date: \(dateWithYear)")
+                        continue
+                    }
+                    guard let amount = parseAmount(String(amountStr)) else {
+                        print("      ⚠️  Could not parse amount: \(amountStr)")
+                        continue
+                    }
                     
                     // Description is everything between post date and amount
                     // We need to skip Trans Date and Post Date (first 2 components), then take everything until amount
                     let descriptionParts = components.dropFirst(2).dropLast()
                     let description = descriptionParts.joined(separator: " ")
                     
-                    guard !description.isEmpty else { continue }
+                    guard !description.isEmpty else {
+                        print("      ⚠️  Empty description")
+                        continue
+                    }
                     
                     let category = CategoryDetector.detect(merchant: description, issuer: "citi")
                     let row = StatementRow(
@@ -870,7 +924,11 @@ class StatementParser {
             "dd/MM/yyyy",
             "d/M/yyyy",
             "MMM d, yyyy",
-            "MMM d yyyy"
+            "MMM d yyyy",
+            "MM/dd",           // Date without year (defaults to current year)
+            "M/d",             // Date without year (defaults to current year)
+            "MMM d",           // Month and day without year
+            "MMM dd"           // Month and day without year
         ]
         
         let trimmed = dateString.trimmingCharacters(in: .whitespaces)
@@ -879,7 +937,18 @@ class StatementParser {
             let formatter = DateFormatter()
             formatter.dateFormat = format
             formatter.locale = Locale(identifier: "en_US_POSIX")
+            
             if let date = formatter.date(from: trimmed) {
+                // If the format doesn't include a year, add the current year
+                if !format.contains("yyyy") && !format.contains("yy") {
+                    // The formatter will use a default year (usually 2000), so we need to adjust
+                    var dateComponents = Calendar.current.dateComponents([.month, .day], from: date)
+                    let currentYear = Calendar.current.component(.year, from: Date())
+                    dateComponents.year = currentYear
+                    if let adjustedDate = Calendar.current.date(from: dateComponents) {
+                        return adjustedDate
+                    }
+                }
                 return date
             }
         }

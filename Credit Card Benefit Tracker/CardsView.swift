@@ -15,8 +15,6 @@ struct CardsView: View {
     @State private var showingAddCard = false
     // Sheet trigger — only set when we want to open the detail view
     @State private var selectedCard: UserCard? = nil
-    // Grid mode: Points breakdown view
-    @State private var selectedCardForPoints: UserCard? = nil
     // Accordion "lifted" card — set on single tap, does NOT open the sheet
     @State private var liftedCard: UserCard? = nil
 
@@ -145,11 +143,24 @@ struct CardsView: View {
                             }
                         }
                     } else {
-                        Button {
-                            showingAddCard = true
-                        } label: {
-                            Image(systemName: "plus")
-                                .fontWeight(.semibold)
+                        // Accordion view buttons
+                        HStack(spacing: 16) {
+                            if !userCards.isEmpty {
+                                Button {
+                                    showStatementUpload = true
+                                } label: {
+                                    Image(systemName: "arrow.up.doc")
+                                        .fontWeight(.semibold)
+                                }
+                                .foregroundStyle(.blue)
+                            }
+                            
+                            Button {
+                                showingAddCard = true
+                            } label: {
+                                Image(systemName: "plus")
+                                    .fontWeight(.semibold)
+                            }
                         }
                     }
                 }
@@ -158,16 +169,10 @@ struct CardsView: View {
                 AddCardView()
             }
             .sheet(item: $selectedCard) { card in
-                CardDetailView(card: card, onDelete: {
+                CardTabsView(card: card, onDelete: {
                     modelContext.delete(card)
                     selectedCard = nil
                 })
-            }
-            .sheet(item: $selectedCardForPoints) { card in
-                PointsBreakdownView(card: card, isPresented: Binding(
-                    get: { selectedCardForPoints != nil },
-                    set: { if !$0 { selectedCardForPoints = nil } }
-                ))
             }
             .sheet(isPresented: $showStatementUpload) {
                 StatementUploadSheet(userCards: userCards) {
@@ -288,7 +293,7 @@ struct CardsView: View {
                                 if isDeleting {
                                     toggleSelection(card)
                                 } else {
-                                    selectedCardForPoints = card
+                                    selectedCard = card
                                 }
                             }
                             .contextMenu {
@@ -499,6 +504,7 @@ struct CardThumbnail: View {
 struct PointsBreakdownView: View {
     let card: UserCard
     @Binding var isPresented: Bool
+    var showStatementUploadButton: Bool = false
     @State private var selectedYear = Calendar.current.component(.year, from: Date())
     
     var currentYearStatements: [Statement] {

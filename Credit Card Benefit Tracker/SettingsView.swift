@@ -13,6 +13,9 @@ struct SettingsView: View {
     @Query private var userCards: [UserCard]
     @State private var showNotificationPermissionAlert = false
     @State private var pendingCardForPermission: UserCard?
+    @State private var showTutorial = false
+    @AppStorage("hasCompletedTutorial") private var hasCompletedTutorial = false
+    @AppStorage("isRedoingTutorial") private var isRedoingTutorial = false
     
     var body: some View {
         NavigationStack {
@@ -24,8 +27,26 @@ struct SettingsView: View {
                         .padding(.top, 2)
                     notificationsSection
                 }
+                
+                Section("Help") {
+                    Button(action: {
+                        hasCompletedTutorial = false
+                        isRedoingTutorial = true
+                        showTutorial = true
+                    }) {
+                        HStack {
+                            Image(systemName: "questionmark.circle.fill")
+                                .foregroundStyle(.blue)
+                            Text("Restart Tutorial")
+                                .foregroundStyle(.primary)
+                        }
+                    }
+                }
             }
             .navigationTitle("Settings")
+            .sheet(isPresented: $showTutorial) {
+                TutorialView()
+            }
         }
     }
     

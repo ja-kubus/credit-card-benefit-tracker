@@ -288,20 +288,51 @@ struct StatementUploadSheet: View {
                     var duplicateCount = 0
                     var filteredRows: [StatementRow] = []
                     
+                    // DEBUG: Log existing statements and rows
+                    print("   🔍 Checking for duplicates...")
+                    print("      Card has \(card.statements.count) existing statement(s)")
+                    let existingRows = card.statements.flatMap { $0.rows }
+                    print("      Total existing rows: \(existingRows.count)")
+                    
+                    if !existingRows.isEmpty {
+                        print("      ─ Existing rows sample:")
+                        for (idx, row) in existingRows.prefix(3).enumerated() {
+                            let formatter = DateFormatter()
+                            formatter.dateFormat = "MM/dd/yyyy"
+                            let dateStr = formatter.string(from: row.transactionDate)
+                            print("         [\(idx)] \(dateStr) | \(row.transactionDescription) | $\(String(format: "%.2f", row.amount))")
+                        }
+                    }
+                    
+                    print("      ─ Parsed rows sample (incoming):")
+                    for (idx, row) in parsedStatement.rows.prefix(3).enumerated() {
+                        let formatter = DateFormatter()
+                        formatter.dateFormat = "MM/dd/yyyy"
+                        let dateStr = formatter.string(from: row.transactionDate)
+                        print("         [\(idx)] \(dateStr) | \(row.transactionDescription) | $\(String(format: "%.2f", row.amount))")
+                    }
+                    
                     for newRow in parsedStatement.rows {
                         let isDuplicateTransaction = card.statements.flatMap { $0.rows }.contains { existingRow in
-                            existingRow.transactionDate == newRow.transactionDate &&
-                            existingRow.transactionDescription.lowercased() == newRow.transactionDescription.lowercased() &&
-                            existingRow.amount == newRow.amount
+                            let isSameDate = existingRow.transactionDate == newRow.transactionDate
+                            let isSameMerchant = existingRow.transactionDescription.lowercased() == newRow.transactionDescription.lowercased()
+                            let isSameAmount = existingRow.amount == newRow.amount
+                            
+                            return isSameDate && isSameMerchant && isSameAmount
                         }
                         
                         if isDuplicateTransaction {
                             duplicateCount += 1
-                            print("   ⚠️  Duplicate transaction skipped: \(newRow.transactionDate) | \(newRow.transactionDescription) | $\(newRow.amount)")
+                            let formatter = DateFormatter()
+                            formatter.dateFormat = "MM/dd/yyyy"
+                            let dateStr = formatter.string(from: newRow.transactionDate)
+                            print("      ⚠️  Duplicate: \(dateStr) | \(newRow.transactionDescription) | $\(String(format: "%.2f", newRow.amount))")
                         } else {
                             filteredRows.append(newRow)
                         }
                     }
+                    
+                    print("      ✓ Filtered \(parsedStatement.rows.count) → \(filteredRows.count) (skipped \(duplicateCount))")
                     
                     if filteredRows.isEmpty {
                         uploadError = .fileReadError("All transactions in this statement are duplicates. No new transactions to add.")
@@ -332,7 +363,7 @@ struct StatementUploadSheet: View {
                     onUploadComplete()
                     
                 case .failure(let error):
-                    print("❌ Parse error: \(error.errorDescription)")
+                    print("❌ Parse error: \(error.errorDescription ?? "Unknown error")")
                     uploadError = error
                     showingErrorAlert = true
                 }
