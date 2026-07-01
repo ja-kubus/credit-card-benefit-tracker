@@ -10,7 +10,9 @@ import SwiftData
 
 struct ContentView: View {
     @AppStorage("hasCompletedTutorial") private var hasCompletedTutorial = false
-    
+    @Environment(\.scenePhase) private var scenePhase
+    @Query private var userCards: [UserCard]
+
     var body: some View {
         ZStack {
             TabView {
@@ -23,6 +25,10 @@ struct ContentView: View {
                     .tabItem {
                         Label("Benefits", systemImage: "checkmark.seal.fill")
                     }
+                RecommendationsView()
+                    .tabItem {
+                        Label("Best Card", systemImage: "star.circle.fill")
+                    }
                 SettingsView()
                     .tabItem{
                         Label("Settings", systemImage: "gearshape.fill")
@@ -33,6 +39,14 @@ struct ContentView: View {
                 TutorialView()
                     .zIndex(1)
             }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                WidgetDataWriter.sync(userCards: userCards)
+            }
+        }
+        .onAppear {
+            WidgetDataWriter.sync(userCards: userCards)
         }
     }
 }

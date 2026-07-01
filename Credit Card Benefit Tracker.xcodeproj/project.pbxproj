@@ -6,7 +6,20 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A76A3BBE2FF5AEE80065D4C1 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A76A3BBD2FF5AEE70065D4C1 /* WidgetKit.framework */; };
+		A76A3BC02FF5AEE80065D4C1 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A76A3BBF2FF5AEE80065D4C1 /* SwiftUI.framework */; };
+		A76A3BCF2FF5AEE90065D4C1 /* BenefitWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A76A3BBB2FF5AEE70065D4C1 /* BenefitWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
+		A76A3BCD2FF5AEE90065D4C1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A71AE7A62F968C0800719EBC /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A76A3BBA2FF5AEE70065D4C1;
+			remoteInfo = BenefitWidgetExtension;
+		};
 		A7E478992FB9363200057642 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = A71AE7A62F968C0800719EBC /* Project object */;
@@ -16,8 +29,26 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		A76A3BD42FF5AEE90065D4C1 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A76A3BCF2FF5AEE90065D4C1 /* BenefitWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		A71AE7CF2F972E7000719EBC /* Credit Card Benefit Tracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Credit Card Benefit Tracker.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A76A3BBB2FF5AEE70065D4C1 /* BenefitWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BenefitWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A76A3BBD2FF5AEE70065D4C1 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		A76A3BBF2FF5AEE80065D4C1 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		A76A3BD52FF5B00A0065D4C1 /* BenefitWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BenefitWidgetExtension.entitlements; sourceTree = "<group>"; };
 		A7E478952FB9363200057642 /* Credit Card Benefit TrackerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Credit Card Benefit TrackerTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -29,11 +60,28 @@
 			);
 			target = A71AE7CE2F972E7000719EBC /* Credit Card Benefit Tracker */;
 		};
+		A76A3BD32FF5AEE90065D4C1 /* Exceptions for "BenefitWidget" folder in "BenefitWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A76A3BBA2FF5AEE70065D4C1 /* BenefitWidgetExtension */;
+		};
+		A76A3BD72FF5B0DA0065D4C1 /* Exceptions for "Credit Card Benefit Tracker" folder in "Credit Card Benefit Tracker" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				WidgetDataWriter.swift,
+			);
+			target = A71AE7CE2F972E7000719EBC /* Credit Card Benefit Tracker */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A71AE7B02F968C0800719EBC /* Credit Card Benefit Tracker */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A76A3BD72FF5B0DA0065D4C1 /* Exceptions for "Credit Card Benefit Tracker" folder in "Credit Card Benefit Tracker" target */,
+			);
 			path = "Credit Card Benefit Tracker";
 			sourceTree = "<group>";
 		};
@@ -45,6 +93,14 @@
 			path = "Credit Card Benefit Tracker";
 			sourceTree = "<group>";
 		};
+		A76A3BC12FF5AEE80065D4C1 /* BenefitWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A76A3BD32FF5AEE90065D4C1 /* Exceptions for "BenefitWidget" folder in "BenefitWidgetExtension" target */,
+			);
+			path = BenefitWidget;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -52,6 +108,15 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A76A3BB82FF5AEE70065D4C1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A76A3BC02FF5AEE80065D4C1 /* SwiftUI.framework in Frameworks */,
+				A76A3BBE2FF5AEE80065D4C1 /* WidgetKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -68,8 +133,11 @@
 		A71AE7A52F968C0800719EBC = {
 			isa = PBXGroup;
 			children = (
+				A76A3BD52FF5B00A0065D4C1 /* BenefitWidgetExtension.entitlements */,
 				A71AE7B02F968C0800719EBC /* Credit Card Benefit Tracker */,
 				A71AE7D02F972E7000719EBC /* Credit Card Benefit Tracker */,
+				A76A3BC12FF5AEE80065D4C1 /* BenefitWidget */,
+				A76A3BBC2FF5AEE70065D4C1 /* Frameworks */,
 				A71AE7AF2F968C0800719EBC /* Products */,
 			);
 			sourceTree = "<group>";
@@ -79,8 +147,18 @@
 			children = (
 				A71AE7CF2F972E7000719EBC /* Credit Card Benefit Tracker.app */,
 				A7E478952FB9363200057642 /* Credit Card Benefit TrackerTests.xctest */,
+				A76A3BBB2FF5AEE70065D4C1 /* BenefitWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A76A3BBC2FF5AEE70065D4C1 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				A76A3BBD2FF5AEE70065D4C1 /* WidgetKit.framework */,
+				A76A3BBF2FF5AEE80065D4C1 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -93,10 +171,12 @@
 				A71AE7CB2F972E7000719EBC /* Sources */,
 				A71AE7CC2F972E7000719EBC /* Frameworks */,
 				A71AE7CD2F972E7000719EBC /* Resources */,
+				A76A3BD42FF5AEE90065D4C1 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				A76A3BCE2FF5AEE90065D4C1 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				A71AE7D02F972E7000719EBC /* Credit Card Benefit Tracker */,
@@ -107,6 +187,28 @@
 			productName = "Credit Card Benefit Tracker";
 			productReference = A71AE7CF2F972E7000719EBC /* Credit Card Benefit Tracker.app */;
 			productType = "com.apple.product-type.application";
+		};
+		A76A3BBA2FF5AEE70065D4C1 /* BenefitWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A76A3BD02FF5AEE90065D4C1 /* Build configuration list for PBXNativeTarget "BenefitWidgetExtension" */;
+			buildPhases = (
+				A76A3BB72FF5AEE70065D4C1 /* Sources */,
+				A76A3BB82FF5AEE70065D4C1 /* Frameworks */,
+				A76A3BB92FF5AEE70065D4C1 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A76A3BC12FF5AEE80065D4C1 /* BenefitWidget */,
+			);
+			name = BenefitWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = BenefitWidgetExtension;
+			productReference = A76A3BBB2FF5AEE70065D4C1 /* BenefitWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 		A7E478942FB9363200057642 /* Credit Card Benefit TrackerTests */ = {
 			isa = PBXNativeTarget;
@@ -135,11 +237,14 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2650;
+				LastSwiftUpdateCheck = 2660;
 				LastUpgradeCheck = 2640;
 				TargetAttributes = {
 					A71AE7CE2F972E7000719EBC = {
 						CreatedOnToolsVersion = 26.4.1;
+					};
+					A76A3BBA2FF5AEE70065D4C1 = {
+						CreatedOnToolsVersion = 26.6;
 					};
 					A7E478942FB9363200057642 = {
 						CreatedOnToolsVersion = 26.5;
@@ -163,12 +268,20 @@
 			targets = (
 				A71AE7CE2F972E7000719EBC /* Credit Card Benefit Tracker */,
 				A7E478942FB9363200057642 /* Credit Card Benefit TrackerTests */,
+				A76A3BBA2FF5AEE70065D4C1 /* BenefitWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		A71AE7CD2F972E7000719EBC /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A76A3BB92FF5AEE70065D4C1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -192,6 +305,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A76A3BB72FF5AEE70065D4C1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A7E478912FB9363200057642 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -202,6 +322,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		A76A3BCE2FF5AEE90065D4C1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A76A3BBA2FF5AEE70065D4C1 /* BenefitWidgetExtension */;
+			targetProxy = A76A3BCD2FF5AEE90065D4C1 /* PBXContainerItemProxy */;
+		};
 		A7E4789A2FB9363200057642 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = A71AE7CE2F972E7000719EBC /* Credit Card Benefit Tracker */;
@@ -403,6 +528,70 @@
 			};
 			name = Release;
 		};
+		A76A3BD12FF5AEE90065D4C1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = BenefitWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = VN7Q7G7ND3;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BenefitWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = BenefitWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "social.Credit-Card-Benefit-Tracker.BenefitWidget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A76A3BD22FF5AEE90065D4C1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = BenefitWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = VN7Q7G7ND3;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BenefitWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = BenefitWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "social.Credit-Card-Benefit-Tracker.BenefitWidget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		A7E4789C2FB9363200057642 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -472,6 +661,15 @@
 			buildConfigurations = (
 				A71AE7DD2F972E7200719EBC /* Debug */,
 				A71AE7DE2F972E7200719EBC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A76A3BD02FF5AEE90065D4C1 /* Build configuration list for PBXNativeTarget "BenefitWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A76A3BD12FF5AEE90065D4C1 /* Debug */,
+				A76A3BD22FF5AEE90065D4C1 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

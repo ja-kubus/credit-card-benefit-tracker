@@ -138,6 +138,7 @@ final class UserCard {
     var accentColor: String
     var dateAdded: Date
     var notificationsEnabled: Bool = true
+    var manualClaimedValue: Double = 0
 
     @Relationship(deleteRule: .cascade) var completions: [BenefitCompletion] = []
     @Relationship(deleteRule: .cascade) var statements: [Statement] = []

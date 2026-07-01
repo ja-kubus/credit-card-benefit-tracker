@@ -50,6 +50,17 @@ struct CardDetailView: View {
         }
     }
 
+    private var claimedValue: Double {
+        card.completions.reduce(0) { sum, comp in
+            let hasPartial = !comp.partialUsage.trimmingCharacters(in: .whitespaces).isEmpty
+            return (comp.isCompleted || hasPartial) ? sum + comp.dollarAmount : sum
+        }
+    }
+
+    private var totalPotentialValue: Double {
+        totalAnnualValue
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -64,6 +75,12 @@ struct CardDetailView: View {
                     statsRow
                         .padding(.horizontal, 20)
                         .padding(.bottom, 24)
+
+                    if totalPotentialValue > 0 {
+                        feeVsValueRow
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 24)
+                    }
 
                     earningSection
                         .padding(.horizontal, 20)
@@ -195,6 +212,45 @@ struct CardDetailView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 14)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var feeVsValueRow: some View {
+        let progress = totalPotentialValue > 0 ? min(claimedValue / totalPotentialValue, 1.0) : 0.0
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Value Claimed")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text("\(claimedValue.formatted(.currency(code: "USD").precision(.fractionLength(0)))) / \(totalPotentialValue.formatted(.currency(code: "USD").precision(.fractionLength(0)))) potential")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            ProgressView(value: progress, total: 1.0)
+                .tint(.blue)
+
+            if card.annualFee > 0 {
+                let recouped = claimedValue >= card.annualFee
+                HStack(spacing: 6) {
+                    Image(systemName: recouped ? "checkmark.circle.fill" : "circle.fill")
+                        .foregroundStyle(recouped ? .green : .orange)
+                        .font(.caption)
+                    if recouped {
+                        Text("Annual fee recouped ✓")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        let remaining = card.annualFee - claimedValue
+                        Text("Claim \(remaining.formatted(.currency(code: "USD").precision(.fractionLength(0)))) more to break even")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .padding(16)
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }

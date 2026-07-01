@@ -141,6 +141,161 @@ struct EarningsTabContent: View {
             return sum + b.dollarAmount * multiplier
         }
     }
+
+    @State private var showManualValueSheet = false
+
+    // Dollar value of benefits marked complete or with partial usage
+    private var benefitsClaimedValue: Double {
+        card.completions.reduce(0.0) { sum, comp in
+            let hasPartial = !comp.partialUsage.trimmingCharacters(in: .whitespaces).isEmpty
+            return (comp.isCompleted || hasPartial) ? sum + comp.dollarAmount : sum
+        }
+    }
+
+    // Dollar value of points earned from uploaded statements
+    private var pointsDollarValue: Double {
+        let cpp = CardRecommendationEngine.programs[card.catalogCardID]?.cpp ?? 1.0
+        var totalPoints = 0.0
+        let highlights = catalog.map { CreditCardCatalog.earningHighlights(for: $0) } ?? []
+        for statement in card.statements {
+            for row in statement.rows {
+                let cat = row.category.lowercased()
+                var multiplier = 1.0
+                for highlight in highlights {
+                    let h = highlight.lowercased()
+                    let matches: Bool
+                    switch cat {
+                    case let c where c.contains("restaurant") || c.contains("dining"):
+                        matches = h.contains("restaurant") || h.contains("dining")
+                    case let c where c.contains("supermarket") || c.contains("grocery"):
+                        matches = h.contains("supermarket") || h.contains("grocery")
+                    case let c where c.contains("flight") || c.contains("airline"):
+                        matches = h.contains("flight") || h.contains("airline")
+                    case let c where c.contains("hotel") || c.contains("resort"):
+                        matches = h.contains("hotel") || h.contains("resort")
+                    case let c where c.contains("gas") || c.contains("fuel"):
+                        matches = h.contains("gas station") || h.contains("fuel")
+                    case let c where c.contains("transit") || c.contains("rideshare"):
+                        matches = h.contains("transit") || h.contains("rideshare")
+                    case let c where c.contains("streaming"):
+                        matches = h.contains("streaming")
+                    case let c where c.contains("drugstore") || c.contains("pharmacy"):
+                        matches = h.contains("drugstore") || h.contains("pharmacy")
+                    default:
+                        matches = false
+                    }
+                    if matches {
+                        // Pull the multiplier out of the highlight string (e.g. "4x" or "6%")
+                        if let m = extractMultiplier(from: highlight), m > multiplier {
+                            multiplier = m
+                        }
+                        break
+                    }
+                }
+                totalPoints += row.amount * multiplier
+            }
+        }
+        return totalPoints * cpp / 100.0
+    }
+
+    private func extractMultiplier(from highlight: String) -> Double? {
+        let lower = highlight.lowercased()
+        if let range = lower.range(of: #"(\d+(?:\.\d+)?)x"#, options: .regularExpression) {
+            let s = String(lower[range]).replacingOccurrences(of: "x", with: "")
+            return Double(s)
+        }
+        if let range = lower.range(of: #"(\d+(?:\.\d+)?)%"#, options: .regularExpression) {
+            let s = String(lower[range]).replacingOccurrences(of: "%", with: "")
+            return Double(s)
+        }
+        return nil
+    }
+
+    private var claimedValue: Double {
+        benefitsClaimedValue + pointsDollarValue + card.manualClaimedValue
+    }
+
+    private var feeVsValueRow: some View {
+        let potential = totalAnnualValue
+        let claimed = claimedValue
+        let progress = potential > 0 ? min(claimed / potential, 1.0) : 0.0
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Value Claimed")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text("\(claimed.formatted(.currency(code: "USD").precision(.fractionLength(0)))) / \(potential.formatted(.currency(code: "USD").precision(.fractionLength(0)))) potential")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            ProgressView(value: progress, total: 1.0)
+                .tint(.blue)
+
+            // Breakdown
+            VStack(alignment: .leading, spacing: 4) {
+                if benefitsClaimedValue > 0 {
+                    breakdownRow(label: "Benefits used", value: benefitsClaimedValue, icon: "checkmark.circle.fill", color: .green)
+                }
+                if pointsDollarValue > 0 {
+                    breakdownRow(label: "Points earned", value: pointsDollarValue, icon: "sparkles", color: .purple)
+                }
+                if card.manualClaimedValue > 0 {
+                    breakdownRow(label: "Prior history", value: card.manualClaimedValue, icon: "clock.fill", color: .orange)
+                }
+            }
+
+            Divider()
+
+            // Prior history button
+            Button {
+                showManualValueSheet = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: card.manualClaimedValue > 0 ? "pencil.circle" : "plus.circle")
+                        .font(.caption)
+                    Text(card.manualClaimedValue > 0 ? "Edit prior history value" : "Add value claimed before using this app")
+                        .font(.caption)
+                }
+                .foregroundStyle(.blue)
+            }
+
+            if card.annualFee > 0 {
+                let recouped = claimed >= card.annualFee
+                HStack(spacing: 6) {
+                    Image(systemName: recouped ? "checkmark.circle.fill" : "circle.fill")
+                        .foregroundStyle(recouped ? .green : .orange)
+                        .font(.caption)
+                    Text(recouped
+                         ? "Annual fee recouped ✓"
+                         : "Need \((card.annualFee - claimed).formatted(.currency(code: "USD").precision(.fractionLength(0)))) more to break even")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .sheet(isPresented: $showManualValueSheet) {
+            ManualValueSheet(card: card)
+        }
+    }
+
+    private func breakdownRow(label: String, value: Double, icon: String, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .foregroundStyle(color)
+                .font(.caption2)
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(value.formatted(.currency(code: "USD").precision(.fractionLength(0))))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+    }
     
     var body: some View {
         ScrollViewReader { scrollProxy in
@@ -187,6 +342,12 @@ struct EarningsTabContent: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
                     
+                    // ── Fee vs Value ──
+                    if totalAnnualValue > 0 {
+                        feeVsValueRow
+                            .padding(.horizontal, 20)
+                    }
+
                     // ── Earning Rates ──
                     earningSection
                         .padding(.horizontal, 20)
@@ -334,6 +495,57 @@ struct PointsTabContent: View {
     
     var body: some View {
         PointsBreakdownView(card: card, isPresented: $isPresentedDummy, showStatementUploadButton: false)
+    }
+}
+
+// MARK: - Manual Value Sheet
+
+struct ManualValueSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @Bindable var card: UserCard
+    @State private var inputValue: String = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    HStack {
+                        Text("$")
+                            .font(.headline)
+                        TextField("0", text: $inputValue)
+                            .keyboardType(.decimalPad)
+                            .focused($focused)
+                    }
+                } header: {
+                    Text("Value claimed before using this app")
+                } footer: {
+                    Text("Enter an estimate of what you've already received from this card's benefits this year — credits used, perks redeemed, etc. This is added to your fee vs. value tracker.")
+                }
+            }
+            .navigationTitle("Prior History")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        card.manualClaimedValue = Double(inputValue) ?? 0
+                        try? modelContext.save()
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear {
+                if card.manualClaimedValue > 0 {
+                    inputValue = String(format: "%.0f", card.manualClaimedValue)
+                }
+                focused = true
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
 

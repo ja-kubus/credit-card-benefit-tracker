@@ -17,6 +17,55 @@ struct BenefitsView: View {
     @State private var expandedCategories: Set<BenefitCategory> = Set(BenefitCategory.allCases)
     @State private var selectedCardIds: Set<PersistentIdentifier> = []
     @State private var showCardFilter = false
+    @State private var searchText = ""
+
+    // MARK: - Computed Properties
+
+    var totalValueRemaining: Double {
+        let cardsToShow = selectedCardIds.isEmpty ? Set<PersistentIdentifier>() : selectedCardIds
+        var total: Double = 0
+        for card in userCards {
+            guard cardsToShow.contains(card.persistentModelID) else { continue }
+            guard let catalog = CreditCardCatalog.all.first(where: { $0.id == card.catalogCardID }) else { continue }
+            let periodBenefits = catalog.benefits.filter { $0.period == selectedPeriod }
+            for benefit in periodBenefits {
+                guard benefit.dollarAmount > 0 else { continue }
+                let comp = card.completions.first(where: { $0.benefitName == benefit.name && $0.benefitPeriod == selectedPeriod })
+                if let comp = comp {
+                    if !comp.isCompleted && !comp.isIgnored {
+                        total += benefit.dollarAmount
+                    }
+                } else {
+                    total += benefit.dollarAmount
+                }
+            }
+        }
+        return total
+    }
+
+    struct ExpiringItem {
+        let cardName: String
+        let completion: BenefitCompletion
+    }
+
+    var expiringBenefits: [ExpiringItem] {
+        let cardsToShow = selectedCardIds.isEmpty ? Set<PersistentIdentifier>() : selectedCardIds
+        let now = Date()
+        let sevenDaysLater = now.addingTimeInterval(7 * 24 * 60 * 60)
+        var items: [ExpiringItem] = []
+        for card in userCards {
+            guard cardsToShow.contains(card.persistentModelID) else { continue }
+            for comp in card.completions {
+                guard !comp.isCompleted,
+                      !comp.isIgnored,
+                      comp.dollarAmount > 0,
+                      comp.resetDate > now,
+                      comp.resetDate <= sevenDaysLater else { continue }
+                items.append(ExpiringItem(cardName: card.name, completion: comp))
+            }
+        }
+        return items.sorted { $0.completion.resetDate < $1.completion.resetDate }
+    }
 
     var body: some View {
         NavigationStack {
@@ -53,7 +102,15 @@ struct BenefitsView: View {
                 .sheet(isPresented: $showCardFilter) {
                     CardFilterSheet(selectedCardIds: $selectedCardIds, userCards: userCards, isPresented: $showCardFilter)
                 }
-                
+
+                expiringSoonStrip
+
+                if totalValueRemaining > 0 {
+                    valueRemainingBanner
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                }
+
                 periodPicker
                     .padding(.horizontal)
                     .padding(.top, 8)
@@ -63,7 +120,8 @@ struct BenefitsView: View {
                 benefitsList
             }
             .navigationTitle("Benefits")
-            .onAppear { 
+            .searchable(text: $searchText, prompt: "Search benefits...")
+            .onAppear {
                 resetExpiredCompletions()
                 // Initialize with all cards selected
                 if selectedCardIds.isEmpty {
@@ -74,6 +132,87 @@ struct BenefitsView: View {
     }
 
     // MARK: - Period Picker
+
+    private var valueRemainingBanner: some View {
+        let itemsByCategory = benefitItemsByCategory(for: selectedPeriod)
+        let benefitCount = itemsByCategory.values.reduce(0) { $0 + $1.count }
+
+        return HStack(spacing: 12) {
+            Image(systemName: "dollarsign.circle.fill")
+                .font(.title2)
+                .foregroundStyle(.green)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("$\(Int(totalValueRemaining)) remaining this period")
+                    .font(.subheadline.weight(.bold))
+                Text("across \(benefitCount) benefits")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(12)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var expiringSoonStrip: some View {
+        Group {
+            if !expiringBenefits.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Expiring Soon")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(expiringBenefits.indices, id: \.self) { index in
+                                let item = expiringBenefits[index]
+                                expiringChip(item: item)
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
+                    }
+                }
+                .background(Color.orange.opacity(0.07))
+            }
+        }
+    }
+
+    private func expiringChip(item: ExpiringItem) -> some View {
+        let now = Date()
+        let days = Calendar.current.dateComponents([.day], from: now, to: item.completion.resetDate).day ?? 0
+        let countdownText = days == 0 ? "Today" : "\(days) days"
+
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Image(systemName: "clock.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                Text(countdownText)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.orange)
+            }
+            Text(item.completion.benefitName)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+            Text(item.cardName)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+        )
+    }
 
     private var periodPicker: some View {
         Picker("Period", selection: $selectedPeriod) {
@@ -201,7 +340,19 @@ struct BenefitsView: View {
             items.sort { $0.cardName < $1.cardName }
             result[key] = items
         }
-        
+
+        // Apply search filter
+        if !searchText.isEmpty {
+            let query = searchText.lowercased()
+            for (key, items) in result {
+                result[key] = items.filter { item in
+                    item.benefit.name.lowercased().contains(query) ||
+                    item.benefit.description.lowercased().contains(query) ||
+                    item.cardName.lowercased().contains(query)
+                }
+            }
+        }
+
         return result
     }
 

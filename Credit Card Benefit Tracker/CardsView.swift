@@ -506,11 +506,34 @@ struct PointsBreakdownView: View {
     @Binding var isPresented: Bool
     var showStatementUploadButton: Bool = false
     @State private var selectedYear = Calendar.current.component(.year, from: Date())
-    
+    @State private var showMissingMonths = false
+
     var currentYearStatements: [Statement] {
-        card.statements.filter { Calendar.current.component(.year, from: $0.uploadDate) == selectedYear
-        }
+        card.statements.filter { Calendar.current.component(.year, from: $0.uploadDate) == selectedYear }
     }
+
+    // Months (1-based) that have at least one uploaded statement for the selected year
+    private var uploadedMonths: Set<Int> {
+        Set(currentYearStatements.map { Calendar.current.component(.month, from: $0.uploadDate) })
+    }
+
+    // Months we expect statements for: Jan through last month (for the selected year)
+    // If selected year is in the past, all 12 months are expected
+    private var expectedMonths: [Int] {
+        let cal = Calendar.current
+        let now = Date()
+        let currentYear = cal.component(.year, from: now)
+        let currentMonth = cal.component(.month, from: now)
+        let lastExpectedMonth = selectedYear < currentYear ? 12 : max(currentMonth - 1, 0)
+        guard lastExpectedMonth > 0 else { return [] }
+        return Array(1...lastExpectedMonth)
+    }
+
+    private var missingMonths: [Int] {
+        expectedMonths.filter { !uploadedMonths.contains($0) }
+    }
+
+    private static let monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
     
     // Extract earning rates from card's earning highlights
     var earningRates: [EarningRate] {
@@ -758,6 +781,51 @@ struct PointsBreakdownView: View {
                     HStack {
                         Text("Points Breakdown")
                             .font(.headline)
+
+                        // Missing statements badge
+                        Button {
+                            showMissingMonths = true
+                        } label: {
+                            ZStack(alignment: .topTrailing) {
+                                Image(systemName: "doc.text.fill")
+                                    .font(.subheadline)
+                                    .foregroundStyle(missingMonths.isEmpty ? Color.secondary : Color.red)
+                            }
+                        }
+                        .popover(isPresented: $showMissingMonths, arrowEdge: .top) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text(missingMonths.isEmpty ? "All statements uploaded" : "Missing Statements")
+                                    .font(.subheadline.weight(.semibold))
+
+                                if missingMonths.isEmpty {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(.green)
+                                        Text("You're all caught up for \(selectedYear).")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                } else {
+                                    Text("No statement uploaded for:")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    FlowLayout(spacing: 6) {
+                                        ForEach(missingMonths, id: \.self) { month in
+                                            Text(PointsBreakdownView.monthNames[month - 1])
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(.white)
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(Color.red)
+                                                .clipShape(Capsule())
+                                        }
+                                    }
+                                }
+                            }
+                            .padding()
+                            .presentationCompactAdaptation(.popover)
+                        }
+
                         Spacer()
                         Menu {
                             ForEach(2020...2030, id: \.self) { year in
@@ -876,13 +944,6 @@ struct PointsBreakdownView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        isPresented = false
-                    }
-                }
-            }
             .sheet(isPresented: $showingStatementDetail) {
                 if let statement = selectedStatement {
                     StatementDetailPopup(statement: statement, modelContext: modelContext) {
@@ -1220,6 +1281,40 @@ struct RoundedCorner: Shape {
                                 byRoundingCorners: corners,
                                 cornerRadii: CGSize(width: radius, height: radius))
         return Path(path.cgPath)
+    }
+}
+
+// MARK: - Flow Layout (wrapping HStack)
+
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? 0
+        var x: CGFloat = 0, y: CGFloat = 0, maxHeight: CGFloat = 0, rowHeight: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x + size.width > width && x > 0 {
+                y += rowHeight + spacing; x = 0; rowHeight = 0
+            }
+            rowHeight = max(rowHeight, size.height)
+            maxHeight = max(maxHeight, y + rowHeight)
+            x += size.width + spacing
+        }
+        return CGSize(width: width, height: maxHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX, y = bounds.minY, rowHeight: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if x + size.width > bounds.maxX && x > bounds.minX {
+                y += rowHeight + spacing; x = bounds.minX; rowHeight = 0
+            }
+            view.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            rowHeight = max(rowHeight, size.height)
+            x += size.width + spacing
+        }
     }
 }
 
