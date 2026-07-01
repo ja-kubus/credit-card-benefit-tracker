@@ -12,6 +12,18 @@ struct ContentView: View {
     @AppStorage("hasCompletedTutorial") private var hasCompletedTutorial = false
     @Environment(\.scenePhase) private var scenePhase
     @Query private var userCards: [UserCard]
+    @Query private var completions: [BenefitCompletion]
+
+    @State private var widgetSyncTask: Task<Void, Never>? = nil
+
+    private func debouncedWidgetSync() {
+        widgetSyncTask?.cancel()
+        widgetSyncTask = Task {
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            WidgetDataWriter.sync(userCards: userCards) // snapshot on main, write on background
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -45,8 +57,15 @@ struct ContentView: View {
                 WidgetDataWriter.sync(userCards: userCards)
             }
         }
+        .onChange(of: completions) { _, _ in
+            debouncedWidgetSync()
+        }
         .onAppear {
             WidgetDataWriter.sync(userCards: userCards)
+            NotificationScheduler.requestPermission()
+        }
+        .onChange(of: userCards) { _, cards in
+            NotificationScheduler.scheduleAll(userCards: cards)
         }
     }
 }

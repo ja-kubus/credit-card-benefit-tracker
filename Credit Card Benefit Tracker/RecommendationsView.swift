@@ -194,6 +194,82 @@ struct CardRecommendationEngine {
         ],
     ]
 
+    // Portal caveats: cardID + category -> note shown beneath the top recommendation
+    // Only populated when the elevated rate requires booking through a specific portal
+    static let portalNotes: [String: [SpendingCategory: String]] = [
+        "american_express_platinum_card": [
+            .airlines: "5x on flights booked through Amex Travel or directly with airlines",
+            .hotels:   "5x on hotels booked through Amex Travel"
+        ],
+        "american_express_gold_card": [
+            .airlines: "3x on flights booked directly with airlines or through Amex Travel"
+        ],
+        "chase_sapphire_reserve": [
+            .airlines: "4x on travel purchased through Chase Travel",
+            .hotels:   "4x on travel purchased through Chase Travel"
+        ],
+        "chase_sapphire_preferred": [
+            .airlines: "2x on travel purchased through Chase Travel",
+            .hotels:   "2x on travel purchased through Chase Travel"
+        ],
+        "chase_freedom_unlimited": [
+            .airlines: "5x on travel purchased through Chase Travel"
+        ],
+        "chase_freedom_flex": [
+            .airlines: "5x on travel purchased through Chase Travel"
+        ],
+        "capital_one_venture_x": [
+            .hotels:   "10x on hotels booked through Capital One Travel",
+            .carRentals: "10x on car rentals booked through Capital One Travel",
+            .airlines: "5x on flights booked through Capital One Travel"
+        ],
+        "capital_one_venture": [
+            .hotels:   "5x on hotels & rental cars booked through Capital One Travel"
+        ],
+        "citi_strata_premier": [
+            .hotels:   "10x on hotels booked through CitiTravel.com",
+            .carRentals: "10x on car rentals booked through CitiTravel.com"
+        ],
+        "usb_altitude_reserve": [
+            .hotels:   "5x on hotels, airlines, and car rentals via the Rewards Center Travel portal",
+            .airlines: "5x on hotels, airlines, and car rentals via the Rewards Center Travel portal",
+            .carRentals: "5x on hotels, airlines, and car rentals via the Rewards Center Travel portal"
+        ],
+        "chase_ihg_one_rewards_premier": [
+            .hotels: "10x on IHG hotel stays booked through IHG.com or the IHG app"
+        ],
+        "chase_ihg_one_rewards_traveler": [
+            .hotels: "5x on IHG hotel stays booked through IHG.com or the IHG app"
+        ],
+        "chase_world_of_hyatt": [
+            .hotels: "4x on Hyatt hotel stays (must be a Hyatt property)"
+        ],
+        "american_express_hilton_honors_aspire_card": [
+            .hotels: "14x at Hilton properties worldwide"
+        ],
+        "american_express_hilton_honors_surpass_card": [
+            .hotels: "12x at Hilton properties worldwide"
+        ],
+        "american_express_hilton_honors_card": [
+            .hotels: "7x at Hilton properties worldwide"
+        ],
+        "chase_united_explorer": [
+            .airlines: "2x on United purchases"
+        ],
+        "chase_united_quest": [
+            .airlines: "3x on United purchases"
+        ],
+        "chase_united_gateway": [
+            .airlines: "2x on United purchases"
+        ],
+        "chase_united_club": [
+            .airlines: "4x on United purchases"
+        ],
+        "chase_disney_inspire_visa": [
+            .streaming: "10x on Disney purchases"
+        ],
+    ]
+
     // MARK: - Best Cards Logic
 
     struct CardResult {
@@ -202,6 +278,7 @@ struct CardRecommendationEngine {
         let effectiveReturnPct: Double
         let programName: String
         let cpp: Double
+        let portalNote: String?
     }
 
     static func bestCards(
@@ -217,13 +294,15 @@ struct CardRecommendationEngine {
             let cardRates = rates[cardID] ?? [:]
             let multiplier = cardRates[category] ?? cardRates[SpendingCategory.other] ?? 1.0
             let effectiveReturnPct = multiplier * program.cpp / 100.0
+            let portalNote = portalNotes[cardID]?[category]
 
             results.append(CardResult(
                 card: card,
                 multiplier: multiplier,
                 effectiveReturnPct: effectiveReturnPct,
                 programName: program.name,
-                cpp: program.cpp
+                cpp: program.cpp,
+                portalNote: portalNote
             ))
         }
 
@@ -309,6 +388,13 @@ struct RecommendationsView: View {
             Text(top.programName)
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
+
+            if let note = top.portalNote {
+                Label(note, systemImage: "info.circle")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             let runnerUps = Array(results.dropFirst().prefix(2))
             if !runnerUps.isEmpty {

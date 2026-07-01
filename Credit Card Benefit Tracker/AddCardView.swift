@@ -18,6 +18,9 @@ struct AddCardView: View {
     @State private var showNotificationPermission = false
     @State private var cardPendingNotificationDecision: CatalogCard?
     @State private var rememberNotificationPreference = false
+    @State private var showAnniversarySheet = false
+    @State private var recentlyAddedCard: UserCard?
+    @State private var anniversaryDate: Date = Calendar.current.date(byAdding: .year, value: -1, to: Date()) ?? Date()
 
     private var ownedIDs: Set<String> {
         Set(userCards.map(\.catalogCardID))
@@ -81,14 +84,29 @@ struct AddCardView: View {
                             updateNotificationDefaults(enabled: true)
                         }
                         showNotificationPermission = false
+                        maybeShowAnniversarySheet(for: catalogCard)
                     },
                     onDeny: {
                         addCard(catalogCard, withNotifications: false)
                         showNotificationPermission = false
+                        maybeShowAnniversarySheet(for: catalogCard)
                     }
                 )
                 .presentationDetents([.medium])
             }
+        }
+        .sheet(isPresented: $showAnniversarySheet) {
+            AnniversaryDateSheet(
+                anniversaryDate: $anniversaryDate,
+                onSave: {
+                    applyAnniversaryDate()
+                    showAnniversarySheet = false
+                },
+                onSkip: {
+                    showAnniversarySheet = false
+                }
+            )
+            .presentationDetents([.medium])
         }
     }
 
@@ -99,10 +117,27 @@ struct AddCardView: View {
             // User already made a choice, use their default
             let defaultEnabled = settings?.notificationsEnabled ?? true
             addCard(catalog, withNotifications: defaultEnabled)
+            maybeShowAnniversarySheet(for: catalog)
         } else {
             // Show permission dialog
             cardPendingNotificationDecision = catalog
             showNotificationPermission = true
+        }
+    }
+
+    private func maybeShowAnniversarySheet(for catalog: CatalogCard) {
+        let hasAnnualBenefits = catalog.benefits.contains { $0.period == .annually }
+        if hasAnnualBenefits {
+            anniversaryDate = Calendar.current.date(byAdding: .year, value: -1, to: Date()) ?? Date()
+            showAnniversarySheet = true
+        }
+    }
+
+    private func applyAnniversaryDate() {
+        guard let card = recentlyAddedCard else { return }
+        for completion in card.completions where completion.benefitPeriod == .annually {
+            completion.benefitStartDate = anniversaryDate
+            completion.resetDate = completion.getNextAnniversaryDate(from: anniversaryDate)
         }
     }
 
@@ -116,6 +151,8 @@ struct AddCardView: View {
             modelContext.insert(completion)
             card.completions.append(completion)
         }
+
+        recentlyAddedCard = card
     }
     
     private func updateNotificationDefaults(enabled: Bool) {
@@ -200,6 +237,49 @@ struct CatalogCardRow: View {
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle()) // keeps tap area clean without triggering add
+    }
+}
+
+// MARK: - Anniversary Date Sheet
+
+struct AnniversaryDateSheet: View {
+    @Binding var anniversaryDate: Date
+    let onSave: () -> Void
+    let onSkip: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                Text("We'll use this to calculate when your annual benefits renew.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+
+                DatePicker(
+                    "Card Opening Date",
+                    selection: $anniversaryDate,
+                    in: ...Date(),
+                    displayedComponents: .date
+                )
+                .datePickerStyle(.graphical)
+                .padding(.horizontal)
+
+                Spacer()
+            }
+            .padding(.top, 8)
+            .navigationTitle("Card Anniversary Date")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Skip") { onSkip() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { onSave() }
+                        .fontWeight(.semibold)
+                }
+            }
+        }
     }
 }
 

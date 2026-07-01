@@ -562,3 +562,68 @@ struct ManualValueSheet: View {
     return CardTabsView(card: card)
         .modelContainer(container)
 }
+
+// MARK: - Benefit Row
+
+struct DetailBenefitRow: View {
+    let benefit: CatalogBenefit
+    let completion: BenefitCompletion?
+
+    @State private var expanded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center, spacing: 12) {
+                if let completion {
+                    Button {
+                        completion.isCompleted.toggle()
+                        if completion.isCompleted { completion.partialUsage = "" }
+                    } label: {
+                        Image(systemName: completion.isCompleted ? "checkmark.circle.fill" : "circle")
+                            .font(.title3)
+                            .foregroundStyle(completion.isCompleted ? .green : Color(.tertiaryLabel))
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Image(systemName: "circle")
+                        .font(.title3)
+                        .foregroundStyle(Color(.quaternaryLabel))
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(benefit.name)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(completion?.isCompleted == true ? .secondary : .primary)
+                        .strikethrough(completion?.isCompleted == true)
+
+                    Text(benefit.dollarAmount.formatted(.currency(code: "USD").precision(.fractionLength(0))) + " / \(benefit.period.rawValue.lowercased())")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button {
+                    withAnimation(.spring(duration: 0.25)) { expanded.toggle() }
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(expanded ? 180 : 0))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            if expanded {
+                Text(benefit.description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+}

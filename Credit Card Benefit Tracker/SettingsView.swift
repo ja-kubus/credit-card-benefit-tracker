@@ -67,6 +67,7 @@ struct SettingsView: View {
                     for card in userCards {
                         card.notificationsEnabled = newValue
                     }
+                    NotificationScheduler.scheduleAll(userCards: userCards)
                 }
             ))
             
@@ -148,6 +149,7 @@ struct SettingsView: View {
                     get: { card.notificationsEnabled },
                     set: { newValue in
                         card.notificationsEnabled = newValue
+                        NotificationScheduler.scheduleAll(userCards: userCards)
                     }
                 ))
                 .frame(width: 50)

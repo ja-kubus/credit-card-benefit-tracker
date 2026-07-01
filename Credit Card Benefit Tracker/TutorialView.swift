@@ -29,7 +29,7 @@ struct TutorialView: View {
                 .zIndex(0)
             
             // Tutorial overlay with highlight and instructions (not shown on final step)
-            if currentStep != 11 {
+            if currentStep != 13 {
                 TutorialOverlay(
                     step: currentStep,
                     onContinue: handleContinue,
@@ -47,7 +47,7 @@ struct TutorialView: View {
             let allCardsBefore = try? modelContext.fetch(FetchDescriptor<UserCard>())
             cardCountBeforeTutorial = allCardsBefore?.count ?? 0
         }
-        .interactiveDismissDisabled(currentStep < 11) // Prevent swipe-to-dismiss during tutorial
+        .interactiveDismissDisabled(currentStep < 13) // Prevent swipe-to-dismiss during tutorial
     }
     
     @ViewBuilder
@@ -96,9 +96,19 @@ struct TutorialView: View {
             // Browse All Benefits - Benefits page
             BenefitsView()
         case 10:
+            // Best Card Recommendations
+            RecommendationsView()
+        case 11:
+            // Annual Fee Tracker - Card tabs view
+            if let card = selectedAddedCard {
+                CardTabsView(card: card, onDelete: nil)
+            } else {
+                CardsView()
+            }
+        case 12:
             // Settings
             SettingsView()
-        case 11:
+        case 13:
             // Thank you screen (no overlay)
             ThankYouView(onDone: {
                 completeTutorial()
@@ -140,7 +150,7 @@ struct TutorialView: View {
         
         currentStep += 1
         
-        if currentStep > 11 {
+        if currentStep > 13 {
             completeTutorial()
         }
     }
@@ -317,7 +327,9 @@ struct TutorialOverlay: View {
         case 7: return "Points & Statements"
         case 8: return "Upload Statements"
         case 9: return "Browse All Benefits"
-        case 10: return "Customize Your Settings"
+        case 10: return "Best Card Recommendations"
+        case 11: return "Annual Fee Tracker"
+        case 12: return "Customize Your Settings"
         default: return "Tutorial"
         }
     }
@@ -333,8 +345,10 @@ struct TutorialOverlay: View {
         case 6: return "Benefits are organized by time period - Monthly, Quarterly, Semi-Annual, and Annual benefits."
         case 7: return "The Points & Statements tab lets you upload credit card statements to track points earned."
         case 8: return "Tap the upload button at the top to add PDF statements from your card issuer. The app automatically categorizes transactions."
-        case 9: return "The Benefits tab shows all benefits across your cards. You can filter by card and period, and track completion."
-        case 10: return "In Settings, you can enable notifications for missed benefits and view your app preferences."
+        case 9: return "The Benefits tab shows all benefits across your cards. You can search benefits, see the expiring soon strip, and track value remaining across your wallet."
+        case 10: return "See which card in your wallet earns the most for each spending category. Point valuations are factored in, so a 14x Hilton card is correctly ranked against a 4x Amex card."
+        case 11: return "Track whether your cards are earning their keep. Benefits used, points earned from statements, and any prior history add up toward breaking even on your annual fee."
+        case 12: return "In Settings, you can enable notifications for missed benefits and view your app preferences."
         default: return "Tutorial step"
         }
     }

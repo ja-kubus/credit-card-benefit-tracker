@@ -137,7 +137,7 @@ struct BenefitWidgetMediumView: View {
 
             // Right: benefit name list
             VStack(alignment: .leading, spacing: 6) {
-                Text("This Month")
+                Text("Unclaimed Benefits")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .padding(.bottom, 2)

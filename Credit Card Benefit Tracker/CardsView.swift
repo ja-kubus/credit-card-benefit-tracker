@@ -40,6 +40,7 @@ struct CardsView: View {
     enum ViewMode {
         case grid
         case accordion
+        case portfolio
     }
     
     var isCardSelected: Bool {
@@ -53,6 +54,8 @@ struct CardsView: View {
                     emptyState
                 } else if viewMode == .accordion {
                     accordionView
+                } else if viewMode == .portfolio {
+                    portfolioView
                 } else {
                     gridView
                 }
@@ -86,6 +89,20 @@ struct CardsView: View {
                                 .foregroundStyle(viewMode == .grid ? .white : .gray)
                                 .frame(width: 32, height: 32)
                                 .background(viewMode == .grid ? Color.blue : Color.gray.opacity(0.2))
+                                .clipShape(Circle())
+                        }
+
+                        // Portfolio view button
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                viewMode = .portfolio
+                            }
+                        } label: {
+                            Image(systemName: "chart.bar.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(viewMode == .portfolio ? .white : .gray)
+                                .frame(width: 32, height: 32)
+                                .background(viewMode == .portfolio ? Color.blue : Color.gray.opacity(0.2))
                                 .clipShape(Circle())
                         }
                     }
@@ -321,6 +338,136 @@ struct CardsView: View {
             }
             .padding(16)
         }
+    }
+
+    private var portfolioView: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                // MARK: Summary header
+                let totalFees = userCards.reduce(0.0) { $0 + $1.annualFee }
+                let totalPotential = userCards.reduce(0.0) { $0 + annualizedBenefitValue(for: $1) }
+                let netValue = totalPotential - totalFees
+
+                VStack(spacing: 12) {
+                    Text("Portfolio Overview")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    HStack(spacing: 0) {
+                        portfolioStat(label: "Annual Fees", value: totalFees, color: .red)
+                        Divider().frame(height: 40)
+                        portfolioStat(label: "Potential Value", value: totalPotential, color: .blue)
+                        Divider().frame(height: 40)
+                        portfolioStat(label: "Net Value", value: netValue, color: netValue >= 0 ? .green : .red)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .cornerRadius(12)
+                }
+                .padding()
+                .background(Color(.systemGroupedBackground))
+                .cornerRadius(16)
+                .padding(.horizontal)
+
+                // MARK: Per-card rows
+                VStack(spacing: 12) {
+                    ForEach(userCards) { card in
+                        let potential = annualizedBenefitValue(for: card)
+                        let claimed = claimedThisCycle(for: card)
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(card.name)
+                                        .font(.subheadline.weight(.semibold))
+                                    Text(card.issuer)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text("$\(Int(card.annualFee)) fee")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.red)
+                                    Text("$\(Int(potential)) potential")
+                                        .font(.caption)
+                                        .foregroundStyle(.blue)
+                                }
+                            }
+
+                            ProgressView(value: claimed, total: max(potential, 0.01))
+                                .tint(.green)
+
+                            HStack {
+                                Text("Claimed: $\(Int(claimed))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                if potential > 0 && claimed >= card.annualFee {
+                                    Text("Breaking even!")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.green)
+                                } else if potential > 0 {
+                                    let needed = card.annualFee - claimed
+                                    Text("Need $\(Int(max(needed, 0))) more")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.orange)
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(Color(.secondarySystemGroupedBackground))
+                        .cornerRadius(12)
+                    }
+                }
+                .padding(.horizontal)
+
+                Spacer(minLength: 32)
+            }
+            .padding(.top, 12)
+        }
+        .background(Color(.systemGroupedBackground))
+    }
+
+    private func annualizedBenefitValue(for card: UserCard) -> Double {
+        guard let catalogCard = CreditCardCatalog.all.first(where: { $0.id == card.catalogCardID }) else {
+            return 0
+        }
+        return catalogCard.benefits.reduce(0.0) { total, benefit in
+            let multiplier: Double = {
+                switch benefit.period {
+                case .monthly:      return 12
+                case .quarterly:    return 4
+                case .semiAnnually: return 2
+                case .annually:     return 1
+                }
+            }()
+            return total + benefit.dollarAmount * multiplier
+        }
+    }
+
+    private func claimedThisCycle(for card: UserCard) -> Double {
+        card.completions.reduce(0.0) { total, completion in
+            guard completion.isCompleted || !completion.partialUsage.trimmingCharacters(in: .whitespaces).isEmpty else {
+                return total
+            }
+            return total + completion.dollarAmount
+        }
+    }
+
+    private func portfolioStat(label: String, value: Double, color: Color) -> some View {
+        VStack(spacing: 4) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Text("$\(Int(abs(value)))")
+                .font(.headline.weight(.bold))
+                .foregroundStyle(color)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
     }
 
     // MARK: - Helpers

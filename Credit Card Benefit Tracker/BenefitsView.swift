@@ -18,6 +18,8 @@ struct BenefitsView: View {
     @State private var selectedCardIds: Set<PersistentIdentifier> = []
     @State private var showCardFilter = false
     @State private var searchText = ""
+    // Precomputed statement match cache: "cardCatalogID|benefitName" -> Bool
+    @State private var statementMatchCache: Set<String> = []
 
     // MARK: - Computed Properties
 
@@ -122,11 +124,16 @@ struct BenefitsView: View {
             .navigationTitle("Benefits")
             .searchable(text: $searchText, prompt: "Search benefits...")
             .onAppear {
+                ensureCompletionsExist()
                 resetExpiredCompletions()
+                rebuildStatementMatchCache()
                 // Initialize with all cards selected
                 if selectedCardIds.isEmpty {
                     selectedCardIds = Set(userCards.map { $0.persistentModelID })
                 }
+            }
+            .onChange(of: userCards) { _, _ in
+                rebuildStatementMatchCache()
             }
         }
     }
@@ -258,7 +265,8 @@ struct BenefitsView: View {
                                     BenefitRow(
                                         cardName: item.cardName,
                                         catalogBenefit: item.benefit,
-                                        completion: item.completion
+                                        completion: item.completion,
+                                        hasStatementMatch: hasStatementMatch(for: item.completion, card: item.card)
                                     )
                                 }
                             }
@@ -299,6 +307,73 @@ struct BenefitsView: View {
         let cardName: String
         let benefit: CatalogBenefit
         let completion: BenefitCompletion
+        let card: UserCard
+    }
+
+    // MARK: - Statement Match Detection
+
+    // O(1) lookup during render — rebuilt only when cards/statements change
+    func hasStatementMatch(for completion: BenefitCompletion, card: UserCard) -> Bool {
+        statementMatchCache.contains("\(card.catalogCardID)|\(completion.benefitName)")
+    }
+
+    private func rebuildStatementMatchCache() {
+        var cache: Set<String> = []
+        let now = Date()
+
+        for card in userCards {
+            guard !card.statements.isEmpty else { continue }
+            let allRows = card.statements.flatMap { $0.rows }
+
+            for completion in card.completions {
+                guard !completion.isCompleted, !completion.isIgnored, completion.dollarAmount > 0 else { continue }
+
+                let periodDays: Double
+                switch completion.benefitPeriod {
+                case .monthly:      periodDays = 30
+                case .quarterly:    periodDays = 90
+                case .semiAnnually: periodDays = 180
+                case .annually:     periodDays = 365
+                }
+                let periodStart = completion.resetDate.addingTimeInterval(-periodDays * 86400)
+                let rows = allRows.filter { $0.transactionDate >= periodStart && $0.transactionDate < completion.resetDate }
+                guard !rows.isEmpty else { continue }
+
+                let nameLower = completion.benefitName.lowercased()
+                let descLower = completion.benefitDescription.lowercased()
+                let catalogBenefit = CreditCardCatalog.all
+                    .first(where: { $0.id == card.catalogCardID })?
+                    .benefits.first(where: { $0.name == completion.benefitName })
+
+                let matched = rows.contains { row in
+                    let txDesc = row.transactionDescription.lowercased()
+                    let txCat  = row.category
+                    if (nameLower.contains("uber") || descLower.contains("uber")) && txDesc.contains("uber") { return true }
+                    if (nameLower.contains("lyft") || descLower.contains("lyft")) && txDesc.contains("lyft") { return true }
+                    if nameLower.contains("dining") || descLower.contains("dining") || catalogBenefit?.category == .dining {
+                        if txCat == "Restaurants" { return true }
+                    }
+                    if nameLower.contains("airline") || nameLower.contains("flight") ||
+                       descLower.contains("airline") || descLower.contains("flight") ||
+                       catalogBenefit?.category == .travel {
+                        if txCat == "Flights" || txCat == "Airlines" { return true }
+                    }
+                    if (nameLower.contains("hotel") || nameLower.contains("resort") ||
+                        descLower.contains("hotel") || descLower.contains("resort")) && txCat == "Hotels" { return true }
+                    if (nameLower.contains("streaming") || descLower.contains("streaming")) && txCat == "Streaming" { return true }
+                    if (nameLower.contains("grocery") || nameLower.contains("supermarket") ||
+                        descLower.contains("grocery") || descLower.contains("supermarket")) && txCat == "Supermarkets" { return true }
+                    if (nameLower.contains("gas") || descLower.contains("gas")) && txCat == "Gas Stations" { return true }
+                    if (nameLower.contains("transit") || nameLower.contains("commut") ||
+                        descLower.contains("transit") || descLower.contains("commut")) && txCat == "Transit" { return true }
+                    return false
+                }
+                if matched {
+                    cache.insert("\(card.catalogCardID)|\(completion.benefitName)")
+                }
+            }
+        }
+        statementMatchCache = cache
     }
 
     private func benefitItemsByCategory(for period: BenefitPeriod) -> [BenefitCategory: [BenefitItem]] {
@@ -317,21 +392,9 @@ struct BenefitsView: View {
             guard let catalog = CreditCardCatalog.all.first(where: { $0.id == card.catalogCardID }) else { continue }
             let periodBenefits = catalog.benefits.filter { $0.period == period }
             for benefit in periodBenefits {
-                // ...existing code...
-                var comp = card.completions.first(where: { $0.benefitName == benefit.name && $0.benefitPeriod == period })
-                
-                // If no completion exists, create one (handles cases where benefits were added after card was added)
-                if comp == nil {
-                    let newCompletion = BenefitCompletion(cardID: card.catalogCardID, benefit: benefit)
-                    modelContext.insert(newCompletion)
-                    card.completions.append(newCompletion)
-                    comp = newCompletion
-                }
-                
-                if let comp = comp {
-                    let item = BenefitItem(cardName: card.name, benefit: benefit, completion: comp)
-                    result[benefit.category, default: []].append(item)
-                }
+                guard let comp = card.completions.first(where: { $0.benefitName == benefit.name && $0.benefitPeriod == period }) else { continue }
+                let item = BenefitItem(cardName: card.name, benefit: benefit, completion: comp, card: card)
+                result[benefit.category, default: []].append(item)
             }
         }
         
@@ -356,6 +419,20 @@ struct BenefitsView: View {
         return result
     }
 
+    private func ensureCompletionsExist() {
+        for card in userCards {
+            guard let catalog = CreditCardCatalog.all.first(where: { $0.id == card.catalogCardID }) else { continue }
+            for benefit in catalog.benefits {
+                let exists = card.completions.contains { $0.benefitName == benefit.name && $0.benefitPeriod == benefit.period }
+                if !exists {
+                    let newCompletion = BenefitCompletion(cardID: card.catalogCardID, benefit: benefit)
+                    modelContext.insert(newCompletion)
+                    card.completions.append(newCompletion)
+                }
+            }
+        }
+    }
+
     private func resetExpiredCompletions() {
         for completion in completions {
             completion.resetIfNeeded()
@@ -367,6 +444,7 @@ struct BenefitRow: View {
     let cardName: String
     let catalogBenefit: CatalogBenefit
     @Bindable var completion: BenefitCompletion
+    var hasStatementMatch: Bool = false
     @State private var showPartialUsageInput = false
     @State private var showAnniversaryDatePicker = false
 
@@ -413,6 +491,15 @@ struct BenefitRow: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .opacity(completion.isIgnored ? 0.5 : 1.0)
+
+                if hasStatementMatch && !completion.isCompleted && !completion.isIgnored {
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc.text.magnifyingglass")
+                        Text("Transaction detected — did you use this?")
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                }
 
                 // Anniversary date editor for annual benefits
                 if completion.benefitPeriod == .annually && !completion.isIgnored {
@@ -608,6 +695,7 @@ struct PartialUsageInputView: View {
                     Button("Save") {
                         if !inputValue.isEmpty {
                             completion.partialUsage = inputValue
+                            completion.isCompleted = false
                         }
                         isPresented = false
                     }
