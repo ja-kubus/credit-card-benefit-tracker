@@ -373,7 +373,7 @@ struct CardsView: View {
                 // MARK: Per-card rows
                 VStack(spacing: 12) {
                     ForEach(userCards) { card in
-                        let potential = annualizedBenefitValue(for: card)
+                        let cycleAvailable = currentCycleValue(for: card)
                         let claimed = claimedThisCycle(for: card)
 
                         VStack(alignment: .leading, spacing: 8) {
@@ -390,27 +390,27 @@ struct CardsView: View {
                                     Text("$\(Int(card.annualFee)) fee")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(.red)
-                                    Text("$\(Int(potential)) potential")
+                                    Text("$\(Int(cycleAvailable)) this cycle")
                                         .font(.caption)
                                         .foregroundStyle(.blue)
                                 }
                             }
 
-                            ProgressView(value: claimed, total: max(potential, 0.01))
+                            ProgressView(value: min(claimed, cycleAvailable), total: max(cycleAvailable, 0.01))
                                 .tint(.green)
 
                             HStack {
-                                Text("Claimed: $\(Int(claimed))")
+                                Text("This cycle: $\(Int(claimed)) / $\(Int(cycleAvailable))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 Spacer()
-                                if potential > 0 && claimed >= card.annualFee {
-                                    Text("Breaking even!")
+                                let totalTowardFee = claimed + card.manualClaimedValue
+                                if totalTowardFee >= card.annualFee {
+                                    Text("Fee recouped")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(.green)
-                                } else if potential > 0 {
-                                    let needed = card.annualFee - claimed
-                                    Text("Need $\(Int(max(needed, 0))) more")
+                                } else {
+                                    Text("$\(Int(card.annualFee - totalTowardFee)) to recoup fee")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(.orange)
                                 }
@@ -447,12 +447,25 @@ struct CardsView: View {
         }
     }
 
+    /// Value available in the CURRENT cycle: plain sum of each benefit's dollar amount
+    /// across all benefit periods (not annualized).
+    private func currentCycleValue(for card: UserCard) -> Double {
+        guard let catalogCard = CreditCardCatalog.all.first(where: { $0.id == card.catalogCardID }) else {
+            return 0
+        }
+        return catalogCard.benefits.reduce(0.0) { $0 + $1.dollarAmount }
+    }
+
     private func claimedThisCycle(for card: UserCard) -> Double {
         card.completions.reduce(0.0) { total, completion in
-            guard completion.isCompleted || !completion.partialUsage.trimmingCharacters(in: .whitespaces).isEmpty else {
-                return total
+            if completion.isCompleted {
+                return total + completion.dollarAmount
             }
-            return total + completion.dollarAmount
+            let partial = completion.partialUsage.trimmingCharacters(in: .whitespaces)
+            if !partial.isEmpty {
+                return total + (Double(partial) ?? 0)
+            }
+            return total
         }
     }
 
@@ -656,12 +669,12 @@ struct PointsBreakdownView: View {
     @State private var showMissingMonths = false
 
     var currentYearStatements: [Statement] {
-        card.statements.filter { Calendar.current.component(.year, from: $0.uploadDate) == selectedYear }
+        card.statements.filter { Calendar.current.component(.year, from: $0.statementMonth) == selectedYear }
     }
 
     // Months (1-based) that have at least one uploaded statement for the selected year
     private var uploadedMonths: Set<Int> {
-        Set(currentYearStatements.map { Calendar.current.component(.month, from: $0.uploadDate) })
+        Set(currentYearStatements.map { Calendar.current.component(.month, from: $0.statementMonth) })
     }
 
     // Months we expect statements for: Jan through last month (for the selected year)
@@ -911,7 +924,24 @@ struct PointsBreakdownView: View {
     @State private var showingStatementDetail = false
     
     var recentStatements: [Statement] {
-        card.statements.sorted { $0.uploadDate > $1.uploadDate }.prefix(5).map { $0 }
+        card.statements.sorted { $0.statementMonth > $1.statementMonth }.prefix(5).map { $0 }
+    }
+
+    private static let statementMonthFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM yyyy"
+        return f
+    }()
+
+    // Year options derived from uploaded statements: earliest statement year
+    // (or last year, whichever is earlier) through the current year.
+    private var yearOptions: [Int] {
+        let currentYear = Calendar.current.component(.year, from: Date())
+        let earliestStatementYear = card.statements
+            .map { Calendar.current.component(.year, from: $0.statementMonth) }
+            .min()
+        let startYear = min(earliestStatementYear ?? (currentYear - 1), currentYear - 1)
+        return Array(startYear...currentYear)
     }
     
     var totalPoints: Double {
@@ -975,7 +1005,7 @@ struct PointsBreakdownView: View {
 
                         Spacer()
                         Menu {
-                            ForEach(2020...2030, id: \.self) { year in
+                            ForEach(yearOptions, id: \.self) { year in
                                 Button(action: { selectedYear = year }) {
                                     if selectedYear == year {
                                         Label(String(year), systemImage: "checkmark")
@@ -1006,7 +1036,7 @@ struct PointsBreakdownView: View {
                                     } label: {
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text(statement.fileName)
-                                            Text(statement.uploadDate, style: .date)
+                                            Text(PointsBreakdownView.statementMonthFormatter.string(from: statement.statementMonth))
                                                 .font(.caption)
                                                 .foregroundStyle(.secondary)
                                         }
@@ -1018,7 +1048,7 @@ struct PointsBreakdownView: View {
                                         if let selected = selectedStatement {
                                             Text(selected.fileName)
                                                 .font(.caption.weight(.semibold))
-                                            Text(selected.uploadDate, style: .date)
+                                            Text(PointsBreakdownView.statementMonthFormatter.string(from: selected.statementMonth))
                                                 .font(.caption2)
                                                 .foregroundStyle(.secondary)
                                         } else {
@@ -1113,6 +1143,12 @@ struct StatementDetailPopup: View {
     @State private var showDeleteConfirm = false
     @State private var selectedRowID: PersistentIdentifier? = nil
     @State private var selectedCategory: String? = nil
+
+    private static let statementMonthFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM yyyy"
+        return f
+    }()
     
     private let availableCategories = [
         "Restaurants",
@@ -1171,7 +1207,16 @@ struct StatementDetailPopup: View {
                         // Statement info
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
-                                Text("Upload Date:")
+                                Text("Statement Month:")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text(Self.statementMonthFormatter.string(from: statement.statementMonth))
+                                    .font(.caption)
+                            }
+
+                            HStack {
+                                Text("Uploaded:")
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(.secondary)
                                 Spacer()

@@ -61,12 +61,12 @@ struct CardRecommendationEngine {
         "citi_strata_premier":                                    ("Citi ThankYou", 1.7),
         "citi_double_cash":                                       ("Cash Back", 1.0),
         "citi_custom_cash":                                       ("Cash Back", 1.0),
-        "citi_aadvantage_platinum_select_world_elite_mastercard": ("AAdvantage", 1.5),
-        "citi_aadvantage_mile_up_credit_card":                    ("AAdvantage", 1.5),
+        "citi_aadvantage_platinum_select": ("AAdvantage", 1.5),
+        "citi_aadvantage_mileup":                    ("AAdvantage", 1.5),
         "discover_it_cash_back":                                  ("Cash Back", 1.0),
-        "wf_autograph_journey":                                   ("Wells Fargo Points", 1.0),
-        "boa_premium_rewards_elite":                              ("Cash Back", 1.0),
-        "usb_altitude_reserve":                                   ("US Bank Points", 1.5),
+        "wells_fargo_autograph_journey":                                   ("Wells Fargo Points", 1.0),
+        "bank_of_america_premium_rewards_elite":                              ("Cash Back", 1.0),
+        "u.s._bank_altitude_reserve":                                   ("US Bank Points", 1.5),
         "chase_united_explorer":                                  ("United MileagePlus", 1.3),
         "chase_united_quest":                                     ("United MileagePlus", 1.3),
         "chase_united_gateway":                                   ("United MileagePlus", 1.3),
@@ -121,7 +121,7 @@ struct CardRecommendationEngine {
             .hotels: 10, .carRentals: 10, .airlines: 5, .other: 2
         ],
         "capital_one_venture": [
-            .other: 2
+            .hotels: 5, .carRentals: 5, .other: 2
         ],
         "capital_one_savorone": [
             .dining: 3, .groceries: 3, .streaming: 3, .other: 1
@@ -135,22 +135,22 @@ struct CardRecommendationEngine {
         "citi_custom_cash": [
             .dining: 5, .other: 1
         ],
-        "citi_aadvantage_platinum_select_world_elite_mastercard": [
+        "citi_aadvantage_platinum_select": [
             .dining: 2, .gas: 2, .other: 1
         ],
-        "citi_aadvantage_mile_up_credit_card": [
+        "citi_aadvantage_mileup": [
             .groceries: 2, .other: 1
         ],
         "discover_it_cash_back": [
             .other: 1
         ],
-        "wf_autograph_journey": [
+        "wells_fargo_autograph_journey": [
             .hotels: 5, .airlines: 4, .dining: 3, .gas: 3, .transit: 3, .streaming: 3, .other: 1
         ],
-        "boa_premium_rewards_elite": [
+        "bank_of_america_premium_rewards_elite": [
             .airlines: 2, .hotels: 2, .dining: 2, .other: 1.5
         ],
-        "usb_altitude_reserve": [
+        "u.s._bank_altitude_reserve": [
             .hotels: 5, .carRentals: 5, .airlines: 5, .other: 1
         ],
         "chase_united_explorer": [
@@ -230,7 +230,7 @@ struct CardRecommendationEngine {
             .hotels:   "10x on hotels booked through CitiTravel.com",
             .carRentals: "10x on car rentals booked through CitiTravel.com"
         ],
-        "usb_altitude_reserve": [
+        "u.s._bank_altitude_reserve": [
             .hotels:   "5x on hotels, airlines, and car rentals via the Rewards Center Travel portal",
             .airlines: "5x on hotels, airlines, and car rentals via the Rewards Center Travel portal",
             .carRentals: "5x on hotels, airlines, and car rentals via the Rewards Center Travel portal"

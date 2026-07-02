@@ -15,6 +15,29 @@ struct ContentView: View {
     @Query private var completions: [BenefitCompletion]
 
     @State private var widgetSyncTask: Task<Void, Never>? = nil
+    @State private var notifRescheduleTask: Task<Void, Never>? = nil
+
+    /// Debounced so rapid benefit toggles trigger one reschedule, not one per tap.
+    /// Ensures completing a benefit cancels its pending "expiring soon" reminder.
+    private func debouncedNotificationReschedule() {
+        notifRescheduleTask?.cancel()
+        notifRescheduleTask = Task {
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            NotificationScheduler.scheduleAll(userCards: userCards)
+        }
+    }
+    @State private var showSharedImport = false
+    @State private var showSharedUploadSheet = false
+    @State private var sharedInboxFiles: [SharedInbox.InboxFile] = []
+
+    private func checkSharedInbox() {
+        let pending = SharedInbox.pendingFiles()
+        if !pending.isEmpty {
+            sharedInboxFiles = pending
+            showSharedImport = true
+        }
+    }
 
     private func debouncedWidgetSync() {
         widgetSyncTask?.cancel()
@@ -55,18 +78,74 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 WidgetDataWriter.sync(userCards: userCards)
+                checkSharedInbox()
             }
         }
-        .onChange(of: completions) { _, _ in
+        // @Query arrays compare by model identity, so onChange(of: completions)
+        // never fires on property mutations — observe the mutable fields instead.
+        .onChange(of: completions.map { "\($0.isCompleted)|\($0.isIgnored)|\($0.partialUsage)" }) { _, _ in
             debouncedWidgetSync()
+            debouncedNotificationReschedule()
         }
         .onAppear {
             WidgetDataWriter.sync(userCards: userCards)
             NotificationScheduler.requestPermission()
+            checkSharedInbox()
         }
-        .onChange(of: userCards) { _, cards in
-            NotificationScheduler.scheduleAll(userCards: cards)
+        .sheet(isPresented: $showSharedImport, onDismiss: {
+            // If the user tapped Import, the coordinator holds the files —
+            // open the upload sheet pre-loaded with them.
+            if !SharedImportCoordinator.shared.filesToImport.isEmpty {
+                showSharedUploadSheet = true
+            }
+        }) {
+            SharedImportSheet(files: sharedInboxFiles)
         }
+        .sheet(isPresented: $showSharedUploadSheet) {
+            StatementUploadSheet(userCards: userCards) {}
+        }
+        .onChange(of: userCards.map { "\($0.persistentModelID)|\($0.notificationsEnabled)" }) { _, _ in
+            NotificationScheduler.scheduleAll(userCards: userCards)
+        }
+    }
+}
+
+/// Shown when the Share Extension has stashed statement files in the
+/// App Group inbox. "Import" hands the files to SharedImportCoordinator
+/// for the statement upload flow to pick up; "Discard" deletes them.
+private struct SharedImportSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let files: [SharedInbox.InboxFile]
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(files) { file in
+                        Label(file.originalName, systemImage: "doc.fill")
+                    }
+                } header: {
+                    Text("Statements received via Share")
+                }
+            }
+            .navigationTitle("Import Statements")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Discard", role: .destructive) {
+                        SharedInbox.clear()
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Import") {
+                        SharedImportCoordinator.shared.filesToImport = files
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
 

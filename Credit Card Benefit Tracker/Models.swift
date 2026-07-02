@@ -217,19 +217,26 @@ final class BenefitCompletion {
     /// Resets the checkbox if the current date has passed the resetDate.
     /// Increments missedCount if the benefit was not completed before reset (and not ignored).
     func resetIfNeeded() {
-        guard Date() >= resetDate else { return }
-        // If benefit wasn't used and not ignored, increment missed count
-        if !hasAnyUsage && !isIgnored {
-            missedCount += 1
-        }
-        isCompleted = false
-        partialUsage = ""
-        
-        // Use anniversary date for annual benefits if set, otherwise use period-based reset
-        if benefitPeriod == .annually, let _ = benefitStartDate {
-            resetDate = getNextAnniversaryDate(from: resetDate)
-        } else {
-            resetDate = benefitPeriod.nextResetDate(from: resetDate)
+        var iterations = 0
+        // Loop to catch up if multiple periods elapsed since the app was last opened.
+        // Safety cap prevents infinite loops on corrupt reset dates.
+        while Date() >= resetDate && iterations < 60 {
+            iterations += 1
+            // If benefit wasn't used and not ignored, increment missed count.
+            // After the first iteration usage has been cleared, so each further
+            // skipped period correctly counts as missed too.
+            if !hasAnyUsage && !isIgnored {
+                missedCount += 1
+            }
+            isCompleted = false
+            partialUsage = ""
+
+            // Use anniversary date for annual benefits if set, otherwise use period-based reset
+            if benefitPeriod == .annually, let _ = benefitStartDate {
+                resetDate = getNextAnniversaryDate(from: resetDate)
+            } else {
+                resetDate = benefitPeriod.nextResetDate(from: resetDate)
+            }
         }
     }
 }

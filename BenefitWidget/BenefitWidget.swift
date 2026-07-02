@@ -81,7 +81,7 @@ struct BenefitWidgetSmallView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.green)
 
-            Text("remaining this month")
+            Text("remaining to claim")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
@@ -125,7 +125,7 @@ struct BenefitWidgetMediumView: View {
                     .font(.title3.weight(.bold))
                     .foregroundStyle(.green)
 
-                Text("remaining this month")
+                Text("remaining to claim")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -194,7 +194,7 @@ struct BenefitWidget: Widget {
                 .containerBackground(.fill.tertiary, for: .widget)
         }
         .configurationDisplayName("Benefit Tracker")
-        .description("See how many card benefits you still have to use this month.")
+        .description("See how many card benefits you still have to use.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }

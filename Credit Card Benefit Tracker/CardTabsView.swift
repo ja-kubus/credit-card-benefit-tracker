@@ -147,8 +147,14 @@ struct EarningsTabContent: View {
     // Dollar value of benefits marked complete or with partial usage
     private var benefitsClaimedValue: Double {
         card.completions.reduce(0.0) { sum, comp in
-            let hasPartial = !comp.partialUsage.trimmingCharacters(in: .whitespaces).isEmpty
-            return (comp.isCompleted || hasPartial) ? sum + comp.dollarAmount : sum
+            if comp.isCompleted {
+                return sum + comp.dollarAmount
+            }
+            let partial = comp.partialUsage.trimmingCharacters(in: .whitespaces)
+            if !partial.isEmpty {
+                return sum + (Double(partial) ?? 0)
+            }
+            return sum
         }
     }
 
@@ -157,8 +163,10 @@ struct EarningsTabContent: View {
         let cpp = CardRecommendationEngine.programs[card.catalogCardID]?.cpp ?? 1.0
         var totalPoints = 0.0
         let highlights = catalog.map { CreditCardCatalog.earningHighlights(for: $0) } ?? []
+        let oneYearAgo = Calendar.current.date(byAdding: .year, value: -1, to: Date())!
         for statement in card.statements {
             for row in statement.rows {
+                guard row.transactionDate >= oneYearAgo else { continue }
                 let cat = row.category.lowercased()
                 var multiplier = 1.0
                 for highlight in highlights {
@@ -185,11 +193,12 @@ struct EarningsTabContent: View {
                         matches = false
                     }
                     if matches {
-                        // Pull the multiplier out of the highlight string (e.g. "4x" or "6%")
+                        // Pull the multiplier out of the highlight string (e.g. "4x" or "6%").
+                        // Evaluate ALL matching highlights and keep the max — don't break,
+                        // or a lower rate can shadow a higher one.
                         if let m = extractMultiplier(from: highlight), m > multiplier {
                             multiplier = m
                         }
-                        break
                     }
                 }
                 totalPoints += row.amount * multiplier
@@ -238,7 +247,7 @@ struct EarningsTabContent: View {
                     breakdownRow(label: "Benefits used", value: benefitsClaimedValue, icon: "checkmark.circle.fill", color: .green)
                 }
                 if pointsDollarValue > 0 {
-                    breakdownRow(label: "Points earned", value: pointsDollarValue, icon: "sparkles", color: .purple)
+                    breakdownRow(label: "Points earned (last 12 mo)", value: pointsDollarValue, icon: "sparkles", color: .purple)
                 }
                 if card.manualClaimedValue > 0 {
                     breakdownRow(label: "Prior history", value: card.manualClaimedValue, icon: "clock.fill", color: .orange)
@@ -521,7 +530,7 @@ struct ManualValueSheet: View {
                 } header: {
                     Text("Value claimed before using this app")
                 } footer: {
-                    Text("Enter an estimate of what you've already received from this card's benefits this year — credits used, perks redeemed, etc. This is added to your fee vs. value tracker.")
+                    Text("Enter an estimate of what you received from this card's benefits BEFORE you started using this app — credits used, perks redeemed, etc. Do not include benefits you've already checked off in the app, or they will be counted twice in your fee vs. value tracker.")
                 }
             }
             .navigationTitle("Prior History")

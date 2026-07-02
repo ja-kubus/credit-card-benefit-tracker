@@ -7,6 +7,8 @@ import UserNotifications
 import Foundation
 
 enum NotificationScheduler {
+    private static let schedulingQueue = DispatchQueue(label: "benefittracker.notification-scheduling", qos: .utility)
+
     static func requestPermission() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
     }
@@ -41,7 +43,9 @@ enum NotificationScheduler {
             }
         }
 
-        Task.detached(priority: .background) {
+        // Serial queue so overlapping reschedules can't interleave their
+        // remove-all + add sequences (which would drop or duplicate requests).
+        Self.schedulingQueue.async {
             let center = UNUserNotificationCenter.current()
             center.removeAllPendingNotificationRequests()
 

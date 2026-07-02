@@ -11,8 +11,6 @@ import SwiftData
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var userCards: [UserCard]
-    @State private var showNotificationPermissionAlert = false
-    @State private var pendingCardForPermission: UserCard?
     @State private var showTutorial = false
     @State private var selectedCardForMissed: UserCard? = nil
 @AppStorage("hasCompletedTutorial") private var hasCompletedTutorial = false
@@ -62,7 +60,7 @@ struct SettingsView: View {
         VStack(spacing: 16) {
             // Master toggle for all notifications
             Toggle("Enable Notifications", isOn: Binding(
-                get: { userCards.contains { $0.notificationsEnabled } },
+                get: { !userCards.isEmpty && userCards.allSatisfy { $0.notificationsEnabled } },
                 set: { newValue in
                     for card in userCards {
                         card.notificationsEnabled = newValue

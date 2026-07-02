@@ -140,8 +140,10 @@ struct TutorialView: View {
     private func handleContinue() {
         // Special logic for certain steps
         if currentStep == 2 {
-            // After adding card, get the newly added card
-            let allCards = try? modelContext.fetch(FetchDescriptor<UserCard>())
+            // After adding card, get the newly added card (sorted so .last is the newest)
+            let allCards = try? modelContext.fetch(
+                FetchDescriptor<UserCard>(sortBy: [SortDescriptor(\.dateAdded)])
+            )
             if let cards = allCards, !cards.isEmpty {
                 selectedAddedCard = cards.last
                 dummyCards = cards

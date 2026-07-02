@@ -132,7 +132,9 @@ struct BenefitsView: View {
                     selectedCardIds = Set(userCards.map { $0.persistentModelID })
                 }
             }
-            .onChange(of: userCards) { _, _ in
+            // Observe a fingerprint including statement counts — @Query arrays compare
+            // by identity, so appending a Statement alone wouldn't trigger onChange.
+            .onChange(of: userCards.map { "\($0.persistentModelID)|\($0.statements.count)" }) { _, _ in
                 rebuildStatementMatchCache()
             }
         }
@@ -142,7 +144,10 @@ struct BenefitsView: View {
 
     private var valueRemainingBanner: some View {
         let itemsByCategory = benefitItemsByCategory(for: selectedPeriod)
-        let benefitCount = itemsByCategory.values.reduce(0) { $0 + $1.count }
+        // Count only unclaimed benefits that contribute to the dollar figure
+        let benefitCount = itemsByCategory.values.reduce(0) { sum, items in
+            sum + items.filter { $0.benefit.dollarAmount > 0 && !$0.completion.isCompleted && !$0.completion.isIgnored }.count
+        }
 
         return HStack(spacing: 12) {
             Image(systemName: "dollarsign.circle.fill")
@@ -152,7 +157,7 @@ struct BenefitsView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("$\(Int(totalValueRemaining)) remaining this period")
                     .font(.subheadline.weight(.bold))
-                Text("across \(benefitCount) benefits")
+                Text("across \(benefitCount) benefit\(benefitCount == 1 ? "" : "s")")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -193,7 +198,7 @@ struct BenefitsView: View {
     private func expiringChip(item: ExpiringItem) -> some View {
         let now = Date()
         let days = Calendar.current.dateComponents([.day], from: now, to: item.completion.resetDate).day ?? 0
-        let countdownText = days == 0 ? "Today" : "\(days) days"
+        let countdownText = days == 0 ? "Today" : (days == 1 ? "1 day" : "\(days) days")
 
         return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 4) {
@@ -319,7 +324,6 @@ struct BenefitsView: View {
 
     private func rebuildStatementMatchCache() {
         var cache: Set<String> = []
-        let now = Date()
 
         for card in userCards {
             guard !card.statements.isEmpty else { continue }
@@ -519,6 +523,7 @@ struct BenefitRow: View {
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                 }
+                                .buttonStyle(.plain)
                                 Spacer()
                             }
                             .padding(.horizontal, 8)
@@ -543,6 +548,7 @@ struct BenefitRow: View {
                             .cornerRadius(6)
                             .foregroundStyle(.secondary)
                         }
+                        .buttonStyle(.plain)
                     }
                     .sheet(isPresented: $showAnniversaryDatePicker) {
                         AnniversaryDatePickerView(
@@ -570,6 +576,7 @@ struct BenefitRow: View {
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                 }
+                                .buttonStyle(.plain)
                                 Spacer()
                             }
                             .padding(.horizontal, 8)
@@ -594,6 +601,7 @@ struct BenefitRow: View {
                             .cornerRadius(6)
                             .foregroundStyle(.secondary)
                         }
+                        .buttonStyle(.plain)
                     }
                     .sheet(isPresented: $showPartialUsageInput) {
                         PartialUsageInputView(

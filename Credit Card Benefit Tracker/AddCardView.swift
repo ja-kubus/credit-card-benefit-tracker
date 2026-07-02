@@ -19,6 +19,7 @@ struct AddCardView: View {
     @State private var cardPendingNotificationDecision: CatalogCard?
     @State private var rememberNotificationPreference = false
     @State private var showAnniversarySheet = false
+    @State private var catalogPendingAnniversary: CatalogCard?
     @State private var recentlyAddedCard: UserCard?
     @State private var anniversaryDate: Date = Calendar.current.date(byAdding: .year, value: -1, to: Date()) ?? Date()
 
@@ -72,7 +73,15 @@ struct AddCardView: View {
                 }
             }
         }
-        .sheet(isPresented: $showNotificationPermission) {
+        .sheet(isPresented: $showNotificationPermission, onDismiss: {
+            // Present the anniversary sheet only after the notification sheet is
+            // fully dismissed — presenting it inside onAllow/onDeny races SwiftUI's
+            // sheet dismissal and the second sheet is often silently dropped.
+            if let catalog = catalogPendingAnniversary {
+                maybeShowAnniversarySheet(for: catalog)
+                catalogPendingAnniversary = nil
+            }
+        }) {
             if let catalogCard = cardPendingNotificationDecision {
                 NotificationPermissionView(
                     cardName: catalogCard.name,
@@ -83,13 +92,13 @@ struct AddCardView: View {
                             rememberNotificationPreference = true
                             updateNotificationDefaults(enabled: true)
                         }
+                        catalogPendingAnniversary = catalogCard
                         showNotificationPermission = false
-                        maybeShowAnniversarySheet(for: catalogCard)
                     },
                     onDeny: {
                         addCard(catalogCard, withNotifications: false)
+                        catalogPendingAnniversary = catalogCard
                         showNotificationPermission = false
-                        maybeShowAnniversarySheet(for: catalogCard)
                     }
                 )
                 .presentationDetents([.medium])
@@ -137,7 +146,9 @@ struct AddCardView: View {
         guard let card = recentlyAddedCard else { return }
         for completion in card.completions where completion.benefitPeriod == .annually {
             completion.benefitStartDate = anniversaryDate
-            completion.resetDate = completion.getNextAnniversaryDate(from: anniversaryDate)
+            // Compute from today so the reset date is always in the future,
+            // even when the card was opened more than a year ago.
+            completion.resetDate = completion.getNextAnniversaryDate(from: Date())
         }
     }
 
