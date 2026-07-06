@@ -106,7 +106,7 @@ struct CardRecommendationEngine {
             .airlines: 4, .hotels: 4, .dining: 3, .other: 1
         ],
         "chase_sapphire_preferred": [
-            .dining: 3, .airlines: 2, .hotels: 2, .other: 1
+            .dining: 3, .gas: 3, .airlines: 2, .hotels: 2, .other: 1
         ],
         "chase_freedom_unlimited": [
             .airlines: 5, .dining: 3, .drugstores: 3, .other: 1.5

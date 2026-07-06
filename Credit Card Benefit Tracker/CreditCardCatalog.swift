@@ -250,8 +250,16 @@ struct CreditCardCatalog {
             benefits: [
                 CatalogBenefit(
                     name: "Annual Hotel Credit",
-                    description: "Up to $50/year in statement credits for hotel stays purchased through Chase Travel℠. Applied each account anniversary year.",
-                    dollarAmount: 50, period: .annually, category: .travel),
+                    description: "Up to $100/year in statement credits for hotel stays purchased through Chase Travel℠. Applied each account anniversary year. (Doubled from $50 in the June 2026 refresh.)",
+                    dollarAmount: 100, period: .annually, category: .travel),
+                CatalogBenefit(
+                    name: "Global Entry / TSA PreCheck / NEXUS Credit",
+                    description: "Up to $120 statement credit every 4 years for Global Entry, TSA PreCheck®, or NEXUS application fee. Added in the June 2026 refresh.",
+                    dollarAmount: 120, period: .annually, category: .travel),
+                CatalogBenefit(
+                    name: "Apple TV+ Subscription",
+                    description: "Complimentary Apple TV+ subscription for one year. Must activate by 12/31/2026.",
+                    dollarAmount: 0, period: .annually, category: .entertainment),
                 CatalogBenefit(
                     name: "DoorDash DashPass Credit",
                     description: "Complimentary DashPass subscription (value ~$10/month) unlocking $0 delivery fees and lower service fees. Activate by 12/31/27.",

@@ -186,20 +186,28 @@ struct TutorialOverlay: View {
         return [1, 3, 8].contains(step) // Steps with interactive buttons to click
     }
     
-    /// Get the spotlight frame for interactive buttons
-    private func getSpotlightFrame(screenWidth: CGFloat) -> CGRect {
-        let yOffset: CGFloat = 40
-        
+    /// Get the spotlight frame for interactive buttons.
+    /// Coordinates are in full-screen space (the GeometryReader ignores safe areas).
+    /// Nav bar buttons sit vertically centered in the navigation bar, whose center is
+    /// roughly `safeAreaTop + 22` from the top of the screen.
+    private func getSpotlightFrame(screenWidth: CGFloat, safeAreaTop: CGFloat) -> CGRect {
+        let centerY = safeAreaTop + 22
+        let size: CGFloat = 36
+
+        func frame(centerX: CGFloat) -> CGRect {
+            CGRect(x: centerX - size / 2, y: centerY - size / 2, width: size, height: size)
+        }
+
         switch step {
         case 1:
-            // Plus button - top right
-            return CGRect(x: screenWidth - 55, y: yOffset, width: 40, height: 40)
+            // Plus button - rightmost trailing toolbar item
+            return frame(centerX: screenWidth - 30)
         case 3:
-            // Grid toggle button - top left
-            return CGRect(x: 18, y: yOffset, width: 40, height: 40)
+            // Grid toggle button - second of the three leading circles
+            return frame(centerX: 76)
         case 8:
-            // Upload button - top right
-            return CGRect(x: screenWidth - 105, y: yOffset, width: 40, height: 40)
+            // Upload button - second from the right in the trailing toolbar
+            return frame(centerX: screenWidth - 78)
         default:
             return .zero
         }
@@ -208,113 +216,83 @@ struct TutorialOverlay: View {
     var body: some View {
         GeometryReader { geometry in
             let screenWidth = geometry.size.width
-            let screenHeight = geometry.size.height
-            
+            let safeAreaTop = geometry.safeAreaInsets.top
+
             ZStack {
                 // Dark overlay with spotlight cutout for certain steps
                 if shouldSpotlight() {
                     Canvas { context, size in
-                        let spotlightFrame = getSpotlightFrame(screenWidth: screenWidth)
+                        let spotlightFrame = getSpotlightFrame(screenWidth: screenWidth, safeAreaTop: safeAreaTop)
                         var path = Path()
                         path.addRect(CGRect(origin: .zero, size: size))
                         path.addEllipse(in: spotlightFrame.insetBy(dx: -15, dy: -15)) // Larger circle for the hole
-                        
+
                         context.fill(path, with: .color(.black.opacity(0.6)), style: FillStyle(eoFill: true))
                     }
                     .ignoresSafeArea()
                 }
-                
+
                 VStack {
                     // For steps 1, 3, 7, 8 show at bottom; others at top
                     if [1, 3, 7, 8].contains(step) {
                         Spacer()
-                        
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text(stepTitle(step))
-                                    .font(.headline.weight(.bold))
-                                    .foregroundStyle(.white)
-                                Spacer()
-                                Button("Skip Tutorial") {
-                                    onSkip()
-                                }
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.white.opacity(0.7))
-                            }
-                            
-                            Text(stepDescription(step))
-                                .font(.subheadline)
-                                .foregroundStyle(.white.opacity(0.9))
-                                .lineLimit(5)
-                            
-                            HStack {
-                                Spacer()
-                                Button(action: onContinue) {
-                                    HStack(spacing: 6) {
-                                        Text("Continue")
-                                        Image(systemName: "chevron.right")
-                                    }
-                                    .font(.subheadline.weight(.semibold))
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 10)
-                                    .background(canContinue ? Color.white : Color.white.opacity(0.4))
-                                    .foregroundStyle(canContinue ? .blue : .blue.opacity(0.5))
-                                    .cornerRadius(8)
-                                }
-                                .disabled(!canContinue)
-                            }
-                        }
-                        .padding(20)
-                        .background(Color.blue.opacity(0.9))
-                        .cornerRadius(14)
-                        .padding(20)
+                        instructionCard
                     } else {
                         // Top position for other steps
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text(stepTitle(step))
-                                    .font(.headline.weight(.bold))
-                                    .foregroundStyle(.white)
-                                Spacer()
-                                Button("Skip Tutorial") {
-                                    onSkip()
-                                }
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.white.opacity(0.7))
-                            }
-                            
-                            Text(stepDescription(step))
-                                .font(.subheadline)
-                                .foregroundStyle(.white.opacity(0.9))
-                                .lineLimit(5)
-                            
-                            HStack {
-                                Spacer()
-                                Button(action: onContinue) {
-                                    HStack(spacing: 6) {
-                                        Text("Continue")
-                                        Image(systemName: "chevron.right")
-                                    }
-                                    .font(.subheadline.weight(.semibold))
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 10)
-                                    .background(canContinue ? Color.white : Color.white.opacity(0.4))
-                                    .foregroundStyle(canContinue ? .blue : .blue.opacity(0.5))
-                                    .cornerRadius(8)
-                                }
-                                .disabled(!canContinue)
-                            }
-                        }
-                        .padding(20)
-                        .background(Color.blue.opacity(0.9))
-                        .cornerRadius(14)
-                        .padding(20)
-                        
+                        instructionCard
                         Spacer()
                     }
                 }
             }
         }
+    }
+
+    /// Compact instruction card with title, description, and Skip/Continue on one row
+    private var instructionCard: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(stepTitle(step))
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.white)
+
+            Text(stepDescription(step))
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.9))
+                .lineLimit(5)
+
+            HStack {
+                Button(action: onSkip) {
+                    Text("Skip")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.8))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.white.opacity(0.15))
+                        .clipShape(Capsule())
+                }
+
+                Spacer()
+
+                Button(action: onContinue) {
+                    HStack(spacing: 4) {
+                        Text("Continue")
+                        Image(systemName: "chevron.right")
+                    }
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(canContinue ? .blue : .blue.opacity(0.5))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(canContinue ? Color.white : Color.white.opacity(0.4))
+                    .clipShape(Capsule())
+                }
+                .disabled(!canContinue)
+            }
+        }
+        .padding(12)
+        .background(Color.blue.opacity(0.8))
+        .cornerRadius(12)
+        .frame(maxWidth: 340)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 20)
     }
     
     private func stepTitle(_ step: Int) -> String {
