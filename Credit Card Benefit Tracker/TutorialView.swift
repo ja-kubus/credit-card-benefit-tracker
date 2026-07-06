@@ -8,6 +8,30 @@
 import SwiftUI
 import SwiftData
 
+// MARK: - Spotlight Registry
+//
+// Toolbar buttons report their actual on-screen frames (global coordinates)
+// here so the tutorial spotlight lands exactly on them instead of relying on
+// hardcoded estimates that break across devices and safe areas.
+@Observable
+final class TutorialSpotlightRegistry {
+    static let shared = TutorialSpotlightRegistry()
+    var frames: [String: CGRect] = [:]
+    private init() {}
+}
+
+extension View {
+    /// Reports this view's global frame to the tutorial spotlight registry
+    /// under the given key, so the tutorial can highlight it precisely.
+    func reportSpotlightFrame(_ key: String) -> some View {
+        onGeometryChange(for: CGRect.self) { proxy in
+            proxy.frame(in: .global)
+        } action: { frame in
+            TutorialSpotlightRegistry.shared.frames[key] = frame
+        }
+    }
+}
+
 struct TutorialView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -180,36 +204,46 @@ struct TutorialOverlay: View {
     let selectedCard: UserCard?
     let selectedAddedCard: UserCard?
     let canContinue: Bool
-    
+
+    // Drag state so the user can move the instruction card out of the way
+    @State private var cardOffset: CGSize = .zero
+    @State private var dragTranslation: CGSize = .zero
+
     /// Returns true for steps where we should darken the background and spotlight a button
     private func shouldSpotlight() -> Bool {
         return [1, 3, 8].contains(step) // Steps with interactive buttons to click
     }
     
     /// Get the spotlight frame for interactive buttons.
-    /// Coordinates are in full-screen space (the GeometryReader ignores safe areas).
-    /// Nav bar buttons sit vertically centered in the navigation bar, whose center is
-    /// roughly `safeAreaTop + 22` from the top of the screen.
+    /// Prefers the button's actual measured frame (reported to
+    /// TutorialSpotlightRegistry in global coordinates); falls back to a
+    /// safe-area-based estimate if the button hasn't reported yet.
     private func getSpotlightFrame(screenWidth: CGFloat, safeAreaTop: CGFloat) -> CGRect {
+        let registryKey: String?
+        switch step {
+        case 1: registryKey = "addCard"
+        case 3: registryKey = "gridToggle"
+        case 8: registryKey = "upload"
+        default: registryKey = nil
+        }
+
+        if let key = registryKey,
+           let measured = TutorialSpotlightRegistry.shared.frames[key],
+           !measured.isEmpty {
+            return measured
+        }
+
+        // Fallback estimates (nav bar center ≈ safeAreaTop + 22)
         let centerY = safeAreaTop + 22
         let size: CGFloat = 36
-
         func frame(centerX: CGFloat) -> CGRect {
             CGRect(x: centerX - size / 2, y: centerY - size / 2, width: size, height: size)
         }
-
         switch step {
-        case 1:
-            // Plus button - rightmost trailing toolbar item
-            return frame(centerX: screenWidth - 30)
-        case 3:
-            // Grid toggle button - second of the three leading circles
-            return frame(centerX: 76)
-        case 8:
-            // Upload button - second from the right in the trailing toolbar
-            return frame(centerX: screenWidth - 78)
-        default:
-            return .zero
+        case 1: return frame(centerX: screenWidth - 30)
+        case 3: return frame(centerX: 76)
+        case 8: return frame(centerX: screenWidth - 78)
+        default: return .zero
         }
     }
     
@@ -219,10 +253,12 @@ struct TutorialOverlay: View {
             let safeAreaTop = geometry.safeAreaInsets.top
 
             ZStack {
-                // Dark overlay with spotlight cutout for certain steps
+                // Dark overlay with spotlight cutout for certain steps.
+                // Read the frame during body evaluation (not inside the Canvas
+                // closure) so @Observable registry updates trigger a re-render.
                 if shouldSpotlight() {
+                    let spotlightFrame = getSpotlightFrame(screenWidth: screenWidth, safeAreaTop: safeAreaTop)
                     Canvas { context, size in
-                        let spotlightFrame = getSpotlightFrame(screenWidth: screenWidth, safeAreaTop: safeAreaTop)
                         var path = Path()
                         path.addRect(CGRect(origin: .zero, size: size))
                         path.addEllipse(in: spotlightFrame.insetBy(dx: -15, dy: -15)) // Larger circle for the hole
@@ -245,11 +281,38 @@ struct TutorialOverlay: View {
                 }
             }
         }
+        .onChange(of: step) { _, _ in
+            // New step: return the card to its default position
+            cardOffset = .zero
+            dragTranslation = .zero
+        }
     }
 
-    /// Compact instruction card with title, description, and Skip/Continue on one row
+    private var cardDragGesture: some Gesture {
+        DragGesture()
+            .onChanged { value in
+                dragTranslation = value.translation
+            }
+            .onEnded { value in
+                cardOffset.width += value.translation.width
+                cardOffset.height += value.translation.height
+                dragTranslation = .zero
+            }
+    }
+
+    /// Compact instruction card with title, description, and Skip/Continue on one row.
+    /// Draggable so the user can move it aside to see the content behind it.
     private var instructionCard: some View {
         VStack(alignment: .leading, spacing: 7) {
+            // Grab handle hint
+            HStack {
+                Spacer()
+                Capsule()
+                    .fill(Color.white.opacity(0.35))
+                    .frame(width: 32, height: 4)
+                Spacer()
+            }
+
             Text(stepTitle(step))
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(.white)
@@ -293,6 +356,11 @@ struct TutorialOverlay: View {
         .frame(maxWidth: 340)
         .padding(.horizontal, 24)
         .padding(.vertical, 20)
+        .offset(
+            x: cardOffset.width + dragTranslation.width,
+            y: cardOffset.height + dragTranslation.height
+        )
+        .gesture(cardDragGesture)
     }
     
     private func stepTitle(_ step: Int) -> String {

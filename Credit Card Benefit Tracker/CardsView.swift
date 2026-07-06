@@ -91,6 +91,7 @@ struct CardsView: View {
                                 .background(viewMode == .grid ? Color.blue : Color.gray.opacity(0.2))
                                 .clipShape(Circle())
                         }
+                        .reportSpotlightFrame("gridToggle")
 
                         // Portfolio view button
                         Button {
@@ -139,6 +140,7 @@ struct CardsView: View {
                                             .fontWeight(.semibold)
                                     }
                                     .foregroundStyle(.blue)
+                                    .reportSpotlightFrame("upload")
                                 }
 
                                 if !userCards.isEmpty {
@@ -157,6 +159,7 @@ struct CardsView: View {
                                     Image(systemName: "plus")
                                         .fontWeight(.semibold)
                                 }
+                                .reportSpotlightFrame("addCard")
                             }
                         }
                     } else {
@@ -170,14 +173,16 @@ struct CardsView: View {
                                         .fontWeight(.semibold)
                                 }
                                 .foregroundStyle(.blue)
+                                .reportSpotlightFrame("upload")
                             }
-                            
+
                             Button {
                                 showingAddCard = true
                             } label: {
                                 Image(systemName: "plus")
                                     .fontWeight(.semibold)
                             }
+                            .reportSpotlightFrame("addCard")
                         }
                     }
                 }
