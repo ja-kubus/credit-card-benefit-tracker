@@ -15,7 +15,6 @@ struct AddCardView: View {
     @Query private var notificationSettings: [NotificationSettings]
 
     @State private var searchText = ""
-    @State private var showNotificationPermission = false
     @State private var cardPendingNotificationDecision: CatalogCard?
     @State private var rememberNotificationPreference = false
     @State private var showAnniversarySheet = false
@@ -73,7 +72,10 @@ struct AddCardView: View {
                 }
             }
         }
-        .sheet(isPresented: $showNotificationPermission, onDismiss: {
+        // item-based sheet: content always has its card, so it can never render
+        // as an empty white sheet (the isPresented + `if let` pattern races the
+        // optional and shows blank when it loses).
+        .sheet(item: $cardPendingNotificationDecision, onDismiss: {
             // Present the anniversary sheet only after the notification sheet is
             // fully dismissed — presenting it inside onAllow/onDeny races SwiftUI's
             // sheet dismissal and the second sheet is often silently dropped.
@@ -81,28 +83,26 @@ struct AddCardView: View {
                 maybeShowAnniversarySheet(for: catalog)
                 catalogPendingAnniversary = nil
             }
-        }) {
-            if let catalogCard = cardPendingNotificationDecision {
-                NotificationPermissionView(
-                    cardName: catalogCard.name,
-                    cardIssuer: catalogCard.issuer,
-                    onAllow: { shouldRemember in
-                        addCard(catalogCard, withNotifications: true)
-                        if shouldRemember {
-                            rememberNotificationPreference = true
-                            updateNotificationDefaults(enabled: true)
-                        }
-                        catalogPendingAnniversary = catalogCard
-                        showNotificationPermission = false
-                    },
-                    onDeny: {
-                        addCard(catalogCard, withNotifications: false)
-                        catalogPendingAnniversary = catalogCard
-                        showNotificationPermission = false
+        }) { catalogCard in
+            NotificationPermissionView(
+                cardName: catalogCard.name,
+                cardIssuer: catalogCard.issuer,
+                onAllow: { shouldRemember in
+                    addCard(catalogCard, withNotifications: true)
+                    if shouldRemember {
+                        rememberNotificationPreference = true
+                        updateNotificationDefaults(enabled: true)
                     }
-                )
-                .presentationDetents([.medium])
-            }
+                    catalogPendingAnniversary = catalogCard
+                    cardPendingNotificationDecision = nil
+                },
+                onDeny: {
+                    addCard(catalogCard, withNotifications: false)
+                    catalogPendingAnniversary = catalogCard
+                    cardPendingNotificationDecision = nil
+                }
+            )
+            .presentationDetents([.medium])
         }
         .sheet(isPresented: $showAnniversarySheet) {
             AnniversaryDateSheet(
@@ -128,9 +128,8 @@ struct AddCardView: View {
             addCard(catalog, withNotifications: defaultEnabled)
             maybeShowAnniversarySheet(for: catalog)
         } else {
-            // Show permission dialog
+            // Show permission dialog (item-based sheet presents when non-nil)
             cardPendingNotificationDecision = catalog
-            showNotificationPermission = true
         }
     }
 

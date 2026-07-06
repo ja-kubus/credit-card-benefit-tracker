@@ -299,7 +299,7 @@ struct TutorialOverlay: View {
         switch step {
         case 0: return "Welcome to Credit Card Benefit Tracker!"
         case 1: return "Adding Your First Card"
-        case 2: return "Select a Card"
+        case 2: return "Add Your Cards"
         case 3: return "Switch to Grid View"
         case 4: return "Managing Your Cards"
         case 5: return "Card Details"
@@ -318,7 +318,7 @@ struct TutorialOverlay: View {
         switch step {
         case 0: return "This app helps you track credit card benefits and maximize your rewards. Let's get started by adding your first card!"
         case 1: return "Tap the plus (+) icon in the top right to add a new card."
-        case 2: return "Select any card from the list to add it to your wallet."
+        case 2: return "Add as many cards as you like from the list — you need at least one to continue. You can always add more later."
         case 3: return "You can switch between accordion and grid views. Tap the toggle button in the top left to see grid mode."
         case 4: return "In grid view, tap on a card and select the delete button to remove it. You'll get a confirmation prompt."
         case 5: return "Tap on your card to open the detailed view. Here you can see all earning rates and categories."
