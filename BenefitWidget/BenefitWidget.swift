@@ -80,34 +80,27 @@ struct BenefitWidgetProvider: TimelineProvider {
     }
 }
 
-// MARK: - Period Switcher (chevron buttons + label)
+// MARK: - Period Arrow Column (up arrow top, down arrow bottom)
 
-struct PeriodSwitcher: View {
-    let period: String
-    var compact = false
-
+struct PeriodArrowColumn: View {
     var body: some View {
-        HStack(spacing: compact ? 4 : 6) {
+        VStack {
             Button(intent: CyclePeriodIntent(forward: false)) {
                 Image(systemName: "chevron.up")
-                    .font(.system(size: compact ? 9 : 10, weight: .bold))
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.secondary)
-                    .frame(width: compact ? 16 : 20, height: compact ? 16 : 20)
+                    .frame(width: 24, height: 24)
                     .background(.quaternary, in: Circle())
             }
             .buttonStyle(.plain)
 
-            Text(period)
-                .font(compact ? .caption2.weight(.bold) : .caption.weight(.bold))
-                .foregroundStyle(.blue)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+            Spacer()
 
             Button(intent: CyclePeriodIntent(forward: true)) {
                 Image(systemName: "chevron.down")
-                    .font(.system(size: compact ? 9 : 10, weight: .bold))
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.secondary)
-                    .frame(width: compact ? 16 : 20, height: compact ? 16 : 20)
+                    .frame(width: 24, height: 24)
                     .background(.quaternary, in: Circle())
             }
             .buttonStyle(.plain)
@@ -121,38 +114,47 @@ struct BenefitWidgetSmallView: View {
     var entry: BenefitWidgetEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Image(systemName: "creditcard.fill")
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                // Full period name, prominent
+                Text(entry.period)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.blue)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+
+                Spacer()
+
+                Text("\(entry.unclaimedCount)")
+                    .font(.system(size: 38, weight: .bold, design: .rounded))
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+
+                Text("unclaimed")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
+                Spacer()
+
+                Text(entry.remainingValue, format: .currency(code: "USD").precision(.fractionLength(0)))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.green)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
+                Text("left to claim")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                Spacer()
-                PeriodSwitcher(period: entry.period, compact: true)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer()
-
-            Text("\(entry.unclaimedCount)")
-                .font(.system(size: 40, weight: .bold, design: .rounded))
-                .minimumScaleFactor(0.6)
-                .lineLimit(1)
-
-            Text(entry.unclaimedCount == 1 ? "benefit unclaimed" : "benefits unclaimed")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-
-            Spacer()
-
-            Text(entry.remainingValue, format: .currency(code: "USD").precision(.fractionLength(0)))
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.green)
-
-            Text("remaining to claim")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            PeriodArrowColumn()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
+        .padding(12)
     }
 }
 
@@ -163,57 +165,60 @@ struct BenefitWidgetMediumView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            // Left: count + value
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 4) {
-                    Image(systemName: "creditcard.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Text("Benefit Tracker")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
+            // Left: period + count + value
+            VStack(alignment: .leading, spacing: 2) {
+                // Full period name, prominent
+                Text(entry.period)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.blue)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
 
                 Spacer()
 
                 Text("\(entry.unclaimedCount)")
-                    .font(.system(size: 44, weight: .bold, design: .rounded))
+                    .font(.system(size: 42, weight: .bold, design: .rounded))
                     .minimumScaleFactor(0.5)
                     .lineLimit(1)
 
                 Text(entry.unclaimedCount == 1 ? "benefit unclaimed" : "benefits unclaimed")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
 
                 Spacer()
 
                 Text(entry.remainingValue, format: .currency(code: "USD").precision(.fractionLength(0)))
                     .font(.title3.weight(.bold))
                     .foregroundStyle(.green)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
 
-                Text("remaining to claim")
+                Text("left to claim")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
             .frame(maxHeight: .infinity, alignment: .leading)
-            .padding(14)
+            .padding(.vertical, 14)
+            .padding(.leading, 14)
+            .padding(.trailing, 10)
 
             Divider()
                 .padding(.vertical, 12)
 
-            // Right: period switcher + benefit name list
+            // Middle: benefit name list
             VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("Unclaimed")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    PeriodSwitcher(period: entry.period, compact: true)
-                }
-                .padding(.bottom, 2)
+                Text("Unclaimed Benefits")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .padding(.bottom, 2)
 
                 if entry.benefitNames.isEmpty {
-                    Text("All \(entry.period.lowercased()) benefits claimed!")
+                    Text("All claimed!")
                         .font(.caption)
                         .foregroundStyle(.green)
                 } else {
@@ -232,7 +237,14 @@ struct BenefitWidgetMediumView: View {
                 Spacer()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(14)
+            .padding(.vertical, 14)
+            .padding(.leading, 10)
+            .padding(.trailing, 6)
+
+            // Right: arrow column (up top, down bottom)
+            PeriodArrowColumn()
+                .padding(.vertical, 14)
+                .padding(.trailing, 12)
         }
     }
 }
