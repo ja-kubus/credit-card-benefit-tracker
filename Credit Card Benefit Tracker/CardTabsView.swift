@@ -43,7 +43,7 @@ struct CardTabsView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
-                        .background(selectedTab == .earnings ? Color.blue : Color.clear)
+                        .background(selectedTab == .earnings ? Color.appCoral : Color.clear)
                         .foregroundStyle(selectedTab == .earnings ? .white : .secondary)
                         .cornerRadius(8)
                     }
@@ -61,7 +61,7 @@ struct CardTabsView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
-                        .background(selectedTab == .points ? Color.blue : Color.clear)
+                        .background(selectedTab == .points ? Color.appCoral : Color.clear)
                         .foregroundStyle(selectedTab == .points ? .white : .secondary)
                         .cornerRadius(8)
                     }
@@ -239,12 +239,12 @@ struct EarningsTabContent: View {
             }
 
             ProgressView(value: progress, total: 1.0)
-                .tint(.blue)
+                .tint(Color.appCoral)
 
             // Breakdown
             VStack(alignment: .leading, spacing: 4) {
                 if benefitsClaimedValue > 0 {
-                    breakdownRow(label: "Benefits used", value: benefitsClaimedValue, icon: "checkmark.circle.fill", color: .green)
+                    breakdownRow(label: "Benefits used", value: benefitsClaimedValue, icon: "checkmark.circle.fill", color: .appLeaf)
                 }
                 if pointsDollarValue > 0 {
                     breakdownRow(label: "Points earned (last 12 mo)", value: pointsDollarValue, icon: "sparkles", color: .purple)
@@ -266,14 +266,14 @@ struct EarningsTabContent: View {
                     Text(card.manualClaimedValue > 0 ? "Edit prior history value" : "Add value claimed before using this app")
                         .font(.caption)
                 }
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.appCoral)
             }
 
             if card.annualFee > 0 {
                 let recouped = claimed >= card.annualFee
                 HStack(spacing: 6) {
                     Image(systemName: recouped ? "checkmark.circle.fill" : "circle.fill")
-                        .foregroundStyle(recouped ? .green : .orange)
+                        .foregroundStyle(recouped ? Color.appLeaf : Color.orange)
                         .font(.caption)
                     Text(recouped
                          ? "Annual fee recouped ✓"
@@ -318,7 +318,7 @@ struct EarningsTabContent: View {
                                 ? "No Fee"
                                 : card.annualFee.formatted(.currency(code: "USD").precision(.fractionLength(0))),
                             icon: "dollarsign.circle.fill",
-                            color: card.annualFee == 0 ? .green : .orange
+                            color: card.annualFee == 0 ? .appLeaf : .orange
                         )
                         
                         // Benefits tile - tappable to scroll
@@ -345,7 +345,7 @@ struct EarningsTabContent: View {
                                 ? "—"
                                 : totalAnnualValue.formatted(.currency(code: "USD").precision(.fractionLength(0))),
                             icon: "gift.fill",
-                            color: .blue
+                            color: .appGiraffe
                         )
                     }
                     .padding(.horizontal, 20)
@@ -487,10 +487,10 @@ struct EarningsTabContent: View {
 
     private func periodColor(_ period: BenefitPeriod) -> Color {
         switch period {
-        case .monthly:      return .blue
+        case .monthly:      return .appCoral
         case .quarterly:    return .orange
         case .semiAnnually: return .purple
-        case .annually:     return .green
+        case .annually:     return .appLeaf
         }
     }
 }
@@ -590,7 +590,7 @@ struct DetailBenefitRow: View {
                     } label: {
                         Image(systemName: completion.isCompleted ? "checkmark.circle.fill" : "circle")
                             .font(.title3)
-                            .foregroundStyle(completion.isCompleted ? .green : Color(.tertiaryLabel))
+                            .foregroundStyle(completion.isCompleted ? Color.appLeaf : Color(.tertiaryLabel))
                     }
                     .buttonStyle(.plain)
                 } else {

@@ -89,7 +89,7 @@ struct BenefitsView: View {
                                 let totalCount = userCards.count
                                 Text("\(selectedCount) of \(totalCount) cards")
                                     .font(.subheadline)
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color.appCoral)
                                 
                                 Image(systemName: "chevron.down")
                                     .font(.caption.weight(.semibold))
@@ -152,7 +152,7 @@ struct BenefitsView: View {
         return HStack(spacing: 12) {
             Image(systemName: "dollarsign.circle.fill")
                 .font(.title2)
-                .foregroundStyle(.green)
+                .foregroundStyle(Color.appLeaf)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("$\(Int(totalValueRemaining)) remaining this period")
@@ -165,7 +165,7 @@ struct BenefitsView: View {
             Spacer()
         }
         .padding(12)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(Color.appSage.opacity(0.55))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -466,7 +466,7 @@ struct BenefitRow: View {
                 } label: {
                     Image(systemName: completion.isCompleted ? "checkmark.circle.fill" : "circle")
                         .font(.title2)
-                        .foregroundStyle(completion.isCompleted ? .green : .secondary)
+                        .foregroundStyle(completion.isCompleted ? Color.appLeaf : .secondary)
                 }
                 .buttonStyle(.plain)
             }
@@ -480,14 +480,14 @@ struct BenefitRow: View {
                     if catalogBenefit.dollarAmount > 0 {
                         Text(catalogBenefit.dollarAmount, format: .currency(code: "USD"))
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(completion.hasAnyUsage ? .green : .secondary)
+                            .foregroundStyle(completion.hasAnyUsage ? Color.appLeaf : .secondary)
                     }
                 }
                 .opacity(completion.isIgnored ? 0.5 : 1.0)
                 
                 Text(cardName)
                     .font(.caption)
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Color.appCoral)
                     .opacity(completion.isIgnored ? 0.5 : 1.0)
                 
                 Text(catalogBenefit.description)
@@ -567,7 +567,7 @@ struct BenefitRow: View {
                                     .font(.caption2)
                                 Text("Used: $\(completion.partialUsage)/$\(Int(catalogBenefit.dollarAmount))")
                                     .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color.appGiraffe)
                                 
                                 Button {
                                     completion.partialUsage = ""
@@ -581,7 +581,7 @@ struct BenefitRow: View {
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Color.blue.opacity(0.1))
+                            .background(Color.appGiraffe.opacity(0.12))
                             .cornerRadius(6)
                         }
                         
@@ -638,7 +638,7 @@ struct BenefitRow: View {
                     systemImage: completion.isIgnored ? "bell" : "bell.slash"
                 )
             }
-            .tint(completion.isIgnored ? .blue : .orange)
+            .tint(completion.isIgnored ? Color.appCoral : Color.orange)
         }
     }
 }
@@ -673,11 +673,11 @@ struct PartialUsageInputView: View {
                             Spacer()
                             if amount >= Double(maxAmount) {
                                 Label("Full credit available!", systemImage: "checkmark.circle.fill")
-                                    .foregroundStyle(.green)
+                                    .foregroundStyle(Color.appLeaf)
                                     .font(.caption)
                             } else {
                                 Label("Partial usage recorded", systemImage: "info.circle")
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color.appGiraffe)
                                     .font(.caption)
                             }
                         }
@@ -738,7 +738,7 @@ struct AnniversaryDatePickerView: View {
                     
                     HStack(spacing: 8) {
                         Image(systemName: "info.circle.fill")
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(Color.appGiraffe)
                             .font(.caption)
                         Text("Benefits renew on this date each year")
                             .font(.caption)
@@ -811,7 +811,7 @@ struct CardFilterSheet: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
-                        .background(Color.blue)
+                        .background(Color.appCoral)
                         .foregroundStyle(.white)
                         .cornerRadius(8)
                     }
@@ -856,7 +856,7 @@ struct CardFilterSheet: View {
                                 }) {
                                     HStack {
                                         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                                            .foregroundStyle(isSelected ? .blue : .gray)
+                                            .foregroundStyle(isSelected ? Color.appCoral : Color.gray)
                                         Text(card.name)
                                             .foregroundStyle(.primary)
                                         Spacer()

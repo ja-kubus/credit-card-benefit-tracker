@@ -5,6 +5,11 @@
 
 import WidgetKit
 import SwiftUI
+
+// Brand palette (widget target cannot see the app's Theme.swift)
+private let brandCoral = Color(red: 0.933, green: 0.482, blue: 0.361)   // #EE7B5C
+private let brandGiraffe = Color(red: 0.910, green: 0.604, blue: 0.235) // #E89A3C
+private let brandLeaf = Color(red: 0.498, green: 0.749, blue: 0.353)    // #7FBF5A
 import AppIntents
 
 private let suiteName = "group.benefittracker.shared"
@@ -119,7 +124,7 @@ struct BenefitWidgetSmallView: View {
                 // Full period name, prominent
                 Text(entry.period)
                     .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(brandCoral)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
 
@@ -140,7 +145,7 @@ struct BenefitWidgetSmallView: View {
 
                 Text(entry.remainingValue, format: .currency(code: "USD").precision(.fractionLength(0)))
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.green)
+                    .foregroundStyle(brandLeaf)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
 
@@ -170,7 +175,7 @@ struct BenefitWidgetMediumView: View {
                 // Full period name, prominent
                 Text(entry.period)
                     .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(brandCoral)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
 
@@ -191,7 +196,7 @@ struct BenefitWidgetMediumView: View {
 
                 Text(entry.remainingValue, format: .currency(code: "USD").precision(.fractionLength(0)))
                     .font(.title3.weight(.bold))
-                    .foregroundStyle(.green)
+                    .foregroundStyle(brandLeaf)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
 
@@ -220,12 +225,12 @@ struct BenefitWidgetMediumView: View {
                 if entry.benefitNames.isEmpty {
                     Text("All claimed!")
                         .font(.caption)
-                        .foregroundStyle(.green)
+                        .foregroundStyle(brandLeaf)
                 } else {
                     ForEach(entry.benefitNames.prefix(4), id: \.self) { name in
                         HStack(spacing: 6) {
                             Circle()
-                                .fill(Color.orange)
+                                .fill(brandGiraffe)
                                 .frame(width: 6, height: 6)
                             Text(name)
                                 .font(.caption)

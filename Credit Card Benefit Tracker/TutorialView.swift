@@ -341,7 +341,7 @@ struct TutorialOverlay: View {
                         Image(systemName: "chevron.right")
                     }
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(canContinue ? .blue : .blue.opacity(0.5))
+                    .foregroundStyle(canContinue ? Color.appCoralDark : Color.appCoralDark.opacity(0.5))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(canContinue ? Color.white : Color.white.opacity(0.4))
@@ -351,7 +351,7 @@ struct TutorialOverlay: View {
             }
         }
         .padding(12)
-        .background(Color.blue.opacity(0.8))
+        .background(Color.appCoral.opacity(0.92))
         .cornerRadius(12)
         .frame(maxWidth: 340)
         .padding(.horizontal, 24)
@@ -414,7 +414,7 @@ struct ThankYouView: View {
             
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 80))
-                .foregroundStyle(.green)
+                .foregroundStyle(Color.appLeaf)
             
             VStack(spacing: 12) {
                 Text("Thank You!")
@@ -433,7 +433,7 @@ struct ThankYouView: View {
                     .font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(Color.blue)
+                    .background(Color.appCoral)
                     .foregroundStyle(.white)
                     .cornerRadius(10)
             }

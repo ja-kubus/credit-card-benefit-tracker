@@ -174,7 +174,7 @@ struct BenefitMatchReviewSheet: View {
                     .font(.body.weight(.semibold))
                 Text(match.cardName)
                     .font(.caption)
-                    .foregroundStyle(.blue)
+                    .foregroundStyle(Color.appCoral)
                 if let first = match.matchedRows.first {
                     let extra = match.matchedRows.count - 1
                     let merchant = extra > 0
@@ -197,9 +197,9 @@ struct BenefitMatchReviewSheet: View {
     @ViewBuilder
     private func badge(for match: BenefitMatch) -> some View {
         if match.isFullMatch {
-            badgeLabel("Will complete", color: .green)
+            badgeLabel("Will complete", color: .appLeaf)
         } else {
-            badgeLabel("Partial: $\(Int(match.totalMatchedAmount)) of $\(Int(match.completion.dollarAmount))", color: .blue)
+            badgeLabel("Partial: $\(Int(match.totalMatchedAmount)) of $\(Int(match.completion.dollarAmount))", color: .appGiraffe)
         }
     }
 

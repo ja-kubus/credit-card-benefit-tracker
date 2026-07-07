@@ -74,7 +74,7 @@ struct CardsView: View {
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(viewMode == .accordion ? .white : .gray)
                                 .frame(width: 32, height: 32)
-                                .background(viewMode == .accordion ? Color.blue : Color.gray.opacity(0.2))
+                                .background(viewMode == .accordion ? Color.appCoral : Color.gray.opacity(0.2))
                                 .clipShape(Circle())
                         }
 
@@ -88,7 +88,7 @@ struct CardsView: View {
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(viewMode == .grid ? .white : .gray)
                                 .frame(width: 32, height: 32)
-                                .background(viewMode == .grid ? Color.blue : Color.gray.opacity(0.2))
+                                .background(viewMode == .grid ? Color.appCoral : Color.gray.opacity(0.2))
                                 .clipShape(Circle())
                         }
                         .reportSpotlightFrame("gridToggle")
@@ -103,7 +103,7 @@ struct CardsView: View {
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(viewMode == .portfolio ? .white : .gray)
                                 .frame(width: 32, height: 32)
-                                .background(viewMode == .portfolio ? Color.blue : Color.gray.opacity(0.2))
+                                .background(viewMode == .portfolio ? Color.appCoral : Color.gray.opacity(0.2))
                                 .clipShape(Circle())
                         }
                     }
@@ -139,7 +139,7 @@ struct CardsView: View {
                                         Image(systemName: "arrow.up.doc")
                                             .fontWeight(.semibold)
                                     }
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color.appCoral)
                                     .reportSpotlightFrame("upload")
                                 }
 
@@ -172,7 +172,7 @@ struct CardsView: View {
                                     Image(systemName: "arrow.up.doc")
                                         .fontWeight(.semibold)
                                 }
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color.appCoral)
                                 .reportSpotlightFrame("upload")
                             }
 
@@ -361,9 +361,9 @@ struct CardsView: View {
                     HStack(spacing: 0) {
                         portfolioStat(label: "Annual Fees", value: totalFees, color: .red)
                         Divider().frame(height: 40)
-                        portfolioStat(label: "Potential Value", value: totalPotential, color: .blue)
+                        portfolioStat(label: "Potential Value", value: totalPotential, color: .appGiraffe)
                         Divider().frame(height: 40)
-                        portfolioStat(label: "Net Value", value: netValue, color: netValue >= 0 ? .green : .red)
+                        portfolioStat(label: "Net Value", value: netValue, color: netValue >= 0 ? .appLeaf : .red)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
@@ -397,12 +397,12 @@ struct CardsView: View {
                                         .foregroundStyle(.red)
                                     Text("$\(Int(cycleAvailable)) this cycle")
                                         .font(.caption)
-                                        .foregroundStyle(.blue)
+                                        .foregroundStyle(Color.appGiraffe)
                                 }
                             }
 
                             ProgressView(value: min(claimed, cycleAvailable), total: max(cycleAvailable, 0.01))
-                                .tint(.green)
+                                .tint(Color.appLeaf)
 
                             HStack {
                                 Text("This cycle: $\(Int(claimed)) / $\(Int(cycleAvailable))")
@@ -413,7 +413,7 @@ struct CardsView: View {
                                 if totalTowardFee >= card.annualFee {
                                     Text("Fee recouped")
                                         .font(.caption.weight(.semibold))
-                                        .foregroundStyle(.green)
+                                        .foregroundStyle(Color.appLeaf)
                                 } else {
                                     Text("$\(Int(card.annualFee - totalTowardFee)) to recoup fee")
                                         .font(.caption.weight(.semibold))
@@ -982,7 +982,7 @@ struct PointsBreakdownView: View {
                                 if missingMonths.isEmpty {
                                     HStack(spacing: 6) {
                                         Image(systemName: "checkmark.circle.fill")
-                                            .foregroundStyle(.green)
+                                            .foregroundStyle(Color.appLeaf)
                                         Text("You're all caught up for \(selectedYear).")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
@@ -1022,7 +1022,7 @@ struct PointsBreakdownView: View {
                         } label: {
                             Text(String(selectedYear))
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color.appCoral)
                         }
                     }
                     
@@ -1108,14 +1108,14 @@ struct PointsBreakdownView: View {
                                         VStack(alignment: .trailing, spacing: 2) {
                                             Text("\(totalPoints, format: .number.precision(.fractionLength(0)))")
                                                 .font(.headline.weight(.semibold))
-                                                .foregroundStyle(.green)
+                                                .foregroundStyle(Color.appLeaf)
                                             Text("points")
                                                 .font(.caption2)
                                                 .foregroundStyle(.secondary)
                                         }
                                     }
                                     .padding()
-                                    .background(Color.green.opacity(0.1))
+                                    .background(Color.appLeaf.opacity(0.12))
                                     .cornerRadius(8)
                                 }
                             }
@@ -1262,14 +1262,14 @@ struct StatementDetailPopup: View {
                                         VStack(alignment: .trailing, spacing: 2) {
                                             Text("$\(String(format: "%.2f", row.amount))")
                                                 .font(.caption.weight(.semibold))
-                                                .foregroundStyle(.blue)
+                                                .foregroundStyle(Color.appGiraffe)
                                             Button {
                                                 selectedRowID = row.id
                                                 selectedCategory = row.category
                                             } label: {
                                                 Text(row.category)
                                                     .font(.caption2)
-                                                    .foregroundStyle(.blue)
+                                                    .foregroundStyle(Color.appCoral)
                                                     .underline()
                                             }
                                         }
@@ -1312,8 +1312,8 @@ struct StatementDetailPopup: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
-                        .background(Color.blue.opacity(0.1))
-                        .foregroundStyle(.blue)
+                        .background(Color.appCoral.opacity(0.12))
+                        .foregroundStyle(Color.appCoral)
                         .cornerRadius(8)
                     }
                 }
@@ -1390,7 +1390,7 @@ struct CategoryPickerRow: View {
                 Spacer()
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.appCoral)
                 }
             }
         }
@@ -1448,7 +1448,7 @@ struct PointsCategoryRow: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("\(points, format: .number.precision(.fractionLength(0)))")
                         .font(.headline.weight(.semibold))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.appGiraffe)
                     Text("points")
                         .font(.caption2)
                         .foregroundStyle(.secondary)

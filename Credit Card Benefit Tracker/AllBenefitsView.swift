@@ -81,8 +81,8 @@ struct AllBenefitsView: View {
                                         .frame(width: 60)
                                         .padding(.vertical, 8)
                                         .padding(.horizontal, 6)
-                                        .background(isSelected ? Color.blue.opacity(0.2) : Color.gray.opacity(0.1))
-                                        .foregroundStyle(isSelected ? .blue : .secondary)
+                                        .background(isSelected ? Color.appCoral.opacity(0.2) : Color.gray.opacity(0.1))
+                                        .foregroundStyle(isSelected ? Color.appCoral : .secondary)
                                         .cornerRadius(8)
                                     }
                                 }
@@ -112,7 +112,7 @@ struct AllBenefitsView: View {
                                     .font(.subheadline.weight(.semibold))
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 8)
-                                    .background(selectedPeriod == nil ? Color.blue : Color.gray.opacity(0.1))
+                                    .background(selectedPeriod == nil ? Color.appCoral : Color.gray.opacity(0.1))
                                     .foregroundStyle(selectedPeriod == nil ? .white : .secondary)
                                     .cornerRadius(6)
                             }
@@ -127,7 +127,7 @@ struct AllBenefitsView: View {
                                         .font(.caption.weight(.semibold))
                                         .frame(maxWidth: .infinity)
                                         .padding(.vertical, 8)
-                                        .background(selectedPeriod == period ? Color.blue : Color.gray.opacity(0.1))
+                                        .background(selectedPeriod == period ? Color.appCoral : Color.gray.opacity(0.1))
                                         .foregroundStyle(selectedPeriod == period ? .white : .secondary)
                                         .cornerRadius(6)
                                 }
@@ -184,7 +184,7 @@ struct AllBenefitsView: View {
                                                         
                                                         Text(benefit.dollarAmount.formatted(.currency(code: "USD").precision(.fractionLength(0))))
                                                             .font(.subheadline.weight(.bold))
-                                                            .foregroundStyle(.green)
+                                                            .foregroundStyle(Color.appLeaf)
                                                     }
                                                     
                                                     Text(benefit.period.rawValue.lowercased())

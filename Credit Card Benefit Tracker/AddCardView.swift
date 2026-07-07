@@ -240,7 +240,7 @@ struct CatalogCardRow: View {
                 } label: {
                     Image(systemName: "plus.circle.fill")
                         .font(.title2)
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.appCoral)
                 }
                 .buttonStyle(.plain)
             }

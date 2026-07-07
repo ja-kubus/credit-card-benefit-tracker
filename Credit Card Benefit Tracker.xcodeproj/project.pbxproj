@@ -58,6 +58,7 @@
 		A76A3BBD2FF5AEE70065D4C1 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		A76A3BBF2FF5AEE80065D4C1 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		A76A3BD52FF5B00A0065D4C1 /* BenefitWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BenefitWidgetExtension.entitlements; sourceTree = "<group>"; };
+		A76A42172FFD7D9B0065D4C1 /* Adobe Express - file.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = "Adobe Express - file.png"; path = "../../Downloads/Adobe Express - file.png"; sourceTree = "<group>"; };
 		A7E478952FB9363200057642 /* Credit Card Benefit TrackerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Credit Card Benefit TrackerTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AE00000000000000000000A4 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -179,6 +180,7 @@
 		A76A3BBC2FF5AEE70065D4C1 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				A76A42172FFD7D9B0065D4C1 /* Adobe Express - file.png */,
 				A76A3BBD2FF5AEE70065D4C1 /* WidgetKit.framework */,
 				A76A3BBF2FF5AEE80065D4C1 /* SwiftUI.framework */,
 			);
@@ -531,6 +533,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = "Credit Card Benefit Tracker/Credit_Card_Benefit_Tracker.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1.3;
@@ -567,6 +570,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = "Credit Card Benefit Tracker/Credit_Card_Benefit_Tracker.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1.3;

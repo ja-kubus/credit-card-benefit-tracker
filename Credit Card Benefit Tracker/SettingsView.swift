@@ -39,7 +39,7 @@ struct SettingsView: View {
                     }) {
                         HStack {
                             Image(systemName: "questionmark.circle.fill")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color.appCoral)
                             Text("Restart Tutorial")
                                 .foregroundStyle(.primary)
                         }
@@ -197,7 +197,7 @@ struct MissedBenefitsSheet: View {
                 VStack(spacing: 12) {
                     Image(systemName: "checkmark.seal.fill")
                         .font(.largeTitle)
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Color.appLeaf)
                     Text("No missed benefits!")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)

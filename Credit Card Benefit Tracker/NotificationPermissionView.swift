@@ -20,7 +20,7 @@ struct NotificationPermissionView: View {
             // Header icon
             Image(systemName: "bell.badge.fill")
                 .font(.system(size: 48))
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.appBell)
                 .padding(.top, 20)
             
             // Title and message
@@ -70,7 +70,7 @@ struct NotificationPermissionView: View {
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(12)
-                        .background(Color.blue)
+                        .background(Color.appCoral)
                         .foregroundStyle(.white)
                         .cornerRadius(8)
                 }
