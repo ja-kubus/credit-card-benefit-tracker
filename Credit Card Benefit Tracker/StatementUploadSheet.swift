@@ -299,8 +299,13 @@ struct StatementUploadSheet: View {
                 }
             }
             .sheet(isPresented: $showBenefitReview) {
-                BenefitMatchReviewSheet(matches: pendingMatches) {
+                BenefitMatchReviewSheet(matches: pendingMatches) { applied in
                     showBenefitReview = false
+                    // List what was actually checked off in the success popup.
+                    if !applied.isEmpty {
+                        successMessage += "\n\nBenefits checked off:\n"
+                            + applied.map(\.summaryLine).joined(separator: "\n")
+                    }
                     // Present the success alert after the sheet dismissal animation completes,
                     // otherwise the alert is dropped mid-dismissal.
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {

@@ -120,12 +120,13 @@ enum BenefitMatcher {
 
 struct BenefitMatchReviewSheet: View {
     let matches: [BenefitMatch]
-    let onDone: () -> Void
+    /// Called with the benefits that were actually checked off (empty on Skip).
+    let onDone: ([AppliedBenefitResult]) -> Void
 
     @Environment(\.modelContext) private var modelContext
     @State private var approved: Set<UUID>
 
-    init(matches: [BenefitMatch], onDone: @escaping () -> Void) {
+    init(matches: [BenefitMatch], onDone: @escaping ([AppliedBenefitResult]) -> Void) {
         self.matches = matches
         self.onDone = onDone
         // Previous-period matches default to OFF — the completion has already reset,
@@ -225,7 +226,7 @@ struct BenefitMatchReviewSheet: View {
             .disabled(approved.isEmpty || matches.isEmpty)
 
             Button {
-                onDone()
+                onDone([])
             } label: {
                 Text("Skip")
                     .frame(maxWidth: .infinity)
@@ -246,6 +247,8 @@ struct BenefitMatchReviewSheet: View {
     }
 
     private func confirmSelected() {
+        var applied: [AppliedBenefitResult] = []
+
         for match in matches where approved.contains(match.id) {
             // Previous-period matches must NOT mark the current period complete —
             // the completion has already reset for the new period.
@@ -255,6 +258,7 @@ struct BenefitMatchReviewSheet: View {
             if match.isFullMatch {
                 completion.isCompleted = true
                 completion.partialUsage = ""
+                applied.append(AppliedBenefitResult(benefitName: completion.benefitName, outcome: .completed))
             } else {
                 // ADD to any existing partial usage rather than overwriting it.
                 let existing = Double(completion.partialUsage) ?? 0
@@ -262,13 +266,38 @@ struct BenefitMatchReviewSheet: View {
                 if newTotal >= completion.dollarAmount {
                     completion.isCompleted = true
                     completion.partialUsage = ""
+                    applied.append(AppliedBenefitResult(benefitName: completion.benefitName, outcome: .completed))
                 } else {
                     completion.partialUsage = String(Int(newTotal))
                     completion.isCompleted = false
+                    applied.append(AppliedBenefitResult(
+                        benefitName: completion.benefitName,
+                        outcome: .partial(used: Int(newTotal), of: Int(completion.dollarAmount))
+                    ))
                 }
             }
         }
         try? modelContext.save()
-        onDone()
+        onDone(applied)
+    }
+}
+
+/// What actually happened to a benefit the user confirmed in the review sheet —
+/// reported back so the upload success popup can list the checked-off benefits.
+struct AppliedBenefitResult {
+    enum Outcome {
+        case completed
+        case partial(used: Int, of: Int)
+    }
+    let benefitName: String
+    let outcome: Outcome
+
+    var summaryLine: String {
+        switch outcome {
+        case .completed:
+            return "✓ \(benefitName) — marked complete"
+        case .partial(let used, let of):
+            return "◐ \(benefitName) — $\(used) of $\(of) recorded"
+        }
     }
 }
