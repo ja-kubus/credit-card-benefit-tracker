@@ -920,6 +920,8 @@ class StatementParser {
         let formatters = [
             "MM/dd/yyyy",
             "M/d/yyyy",
+            "MM/dd/yy",        // Two-digit year (e.g. "06/12/26" on Amex statements)
+            "M/d/yy",
             "yyyy-MM-dd",
             "dd/MM/yyyy",
             "d/M/yyyy",
@@ -930,14 +932,14 @@ class StatementParser {
             "MMM d",           // Month and day without year
             "MMM dd"           // Month and day without year
         ]
-        
+
         let trimmed = dateString.trimmingCharacters(in: .whitespaces)
-        
+
         for format in formatters {
             let formatter = DateFormatter()
             formatter.dateFormat = format
             formatter.locale = Locale(identifier: "en_US_POSIX")
-            
+
             if let date = formatter.date(from: trimmed) {
                 // If the format doesn't include a year, add the current year
                 if !format.contains("yyyy") && !format.contains("yy") {
@@ -949,10 +951,21 @@ class StatementParser {
                         return adjustedDate
                     }
                 }
+
+                // Sanity check: "MM/dd/yyyy" leniently parses two-digit years
+                // ("06/12/26" -> year 26 AD), which silently buckets the whole
+                // statement into the wrong millennium. Remap into the 2000s.
+                var comps = Calendar.current.dateComponents([.year, .month, .day], from: date)
+                if let year = comps.year, year < 100 {
+                    comps.year = year + 2000
+                    if let remapped = Calendar.current.date(from: comps) {
+                        return remapped
+                    }
+                }
                 return date
             }
         }
-        
+
         return nil
     }
     
@@ -998,7 +1011,27 @@ struct CategoryDetector {
         if lowerMerchant.contains(regex: "travel|booking|airbnb|vrbo|hostel|motel") {
             return "Hotels"
         }
-        
+
+        // Gas stations / EV charging
+        if lowerMerchant.contains(regex: "shell|chevron|exxon|mobil|bp |bp#|sunoco|marathon|phillips 66|conoco|valero|speedway|circle k|wawa|quiktrip|casey|7-eleven fuel|gas station|fuel|supercharger|evgo|chargepoint|electrify america") {
+            return "Gas Stations"
+        }
+
+        // Streaming services
+        if lowerMerchant.contains(regex: "netflix|hulu|spotify|disney plus|disney\\+|hbo|max\\.com|peacock|paramount|apple tv|apple\\.com/bill|youtube premium|youtube tv|audible|pandora|siriusxm|crunchyroll|twitch") {
+            return "Streaming"
+        }
+
+        // Transit / rideshare / commuting
+        if lowerMerchant.contains(regex: "uber|lyft|mta|metro|subway station|amtrak|caltrain|bart|transit|parking|toll|ferry|taxi|via ") {
+            return "Transit"
+        }
+
+        // Drugstores
+        if lowerMerchant.contains(regex: "cvs|walgreens|rite aid|duane reade|pharmacy|drugstore") {
+            return "Drugstores"
+        }
+
         // Default
         return "Other"
     }
