@@ -168,6 +168,10 @@ final class BenefitCompletion {
     var partialUsage: String = ""  // e.g., "250" for $250 used out of available
     var isIgnored: Bool = false    // When true, benefit is not counted in missed notifications
     var benefitStartDate: Date?     // Anniversary date for annual benefits (e.g., card opening date)
+    // uploadHash of the statement whose transactions auto-checked this benefit
+    // (via the Benefits Found review). Empty for manual check-offs. Used to
+    // undo the check-off if that statement is later deleted.
+    var autoCheckSourceHash: String = ""
 
     init(cardID: String, benefit: CatalogBenefit) {
         self.cardID             = cardID

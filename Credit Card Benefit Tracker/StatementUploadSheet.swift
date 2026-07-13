@@ -342,14 +342,18 @@ struct StatementUploadSheet: View {
         let inboxFiles = SharedImportCoordinator.shared.filesToImport
         guard !inboxFiles.isEmpty else { return }
 
-        selectedFiles.append(contentsOf: inboxFiles.map {
+        // Skip files already in the picker (e.g. the same PDF shared twice)
+        let existingNames = Set(selectedFiles.map { $0.fileName.lowercased() })
+        let newFiles = inboxFiles.filter { !existingNames.contains($0.originalName.lowercased()) }
+
+        selectedFiles.append(contentsOf: newFiles.map {
             PickedFile(fileName: $0.originalName, data: $0.data)
         })
-        if let first = inboxFiles.first {
+        if let first = newFiles.first {
             autoDetectIssuer(from: first.originalName)
         }
 
-        pendingInboxFiles = inboxFiles
+        pendingInboxFiles += newFiles
         SharedImportCoordinator.shared.filesToImport = []
     }
 
@@ -431,6 +435,7 @@ struct StatementUploadSheet: View {
                 var totalDuplicatesSkipped = 0
                 var failures: [String] = []  // "fileName: error"
                 var allNewlyInsertedRows: [StatementRow] = []
+                var newStatementHashes: [(hash: String, rows: [StatementRow])] = []
 
                 for (file, result) in parseResults {
                     switch result {
@@ -505,6 +510,7 @@ struct StatementUploadSheet: View {
                         totalNewRows += filteredRows.count
                         totalDuplicatesSkipped += duplicateCount
                         allNewlyInsertedRows.append(contentsOf: filteredRows)
+                        newStatementHashes.append((hash: contentHash, rows: filteredRows))
 
                     case .failure(let error):
                         print("❌ Parse error for \(file.fileName): \(error.errorDescription ?? "Unknown error")")
@@ -536,8 +542,19 @@ struct StatementUploadSheet: View {
                 }
                 pendingInboxFiles = []
 
-                // Check for benefit auto-completion matches before showing success
-                let matches = BenefitMatcher.findMatches(card: card, in: allNewlyInsertedRows)
+                // Check for benefit auto-completion matches before showing success.
+                // Matched per statement so each match records which statement it
+                // came from (dedupe keeps one match per benefit completion).
+                var seenCompletions = Set<ObjectIdentifier>()
+                var matches: [BenefitMatch] = []
+                for entry in newStatementHashes {
+                    for match in BenefitMatcher.findMatches(card: card, in: entry.rows, sourceHash: entry.hash) {
+                        let key = ObjectIdentifier(match.completion)
+                        if seenCompletions.insert(key).inserted {
+                            matches.append(match)
+                        }
+                    }
+                }
                 if !matches.isEmpty {
                     pendingMatches = matches
                     showBenefitReview = true

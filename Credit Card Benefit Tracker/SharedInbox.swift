@@ -27,14 +27,20 @@ struct SharedInbox {
 
     /// Returns pending files from the App Group Inbox (decoding the
     /// `UUID__name` prefix), or [] if none/unavailable.
+    /// Identical files (same original name and same content) — e.g. from the
+    /// user sharing the same PDF twice — are deduplicated: the first copy is
+    /// returned and the extras are deleted from disk.
     static func pendingFiles() -> [InboxFile] {
         guard let inbox = inboxURL,
               let urls = try? FileManager.default.contentsOfDirectory(
                 at: inbox, includingPropertiesForKeys: nil
               ) else { return [] }
 
-        return urls.compactMap { url in
-            guard let data = try? Data(contentsOf: url) else { return nil }
+        var seen = Set<String>()   // "originalName|byteCount" content fingerprint
+        var files: [InboxFile] = []
+
+        for url in urls.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+            guard let data = try? Data(contentsOf: url) else { continue }
             let fileName = url.lastPathComponent
             // Files are named "<UUID>__<originalName>" by the extension.
             let originalName: String
@@ -43,8 +49,17 @@ struct SharedInbox {
             } else {
                 originalName = fileName
             }
-            return InboxFile(url: url, originalName: originalName, data: data)
+
+            let fingerprint = "\(originalName)|\(data.count)"
+            if seen.contains(fingerprint) {
+                // Duplicate share of the same file — remove the extra copy.
+                try? FileManager.default.removeItem(at: url)
+                continue
+            }
+            seen.insert(fingerprint)
+            files.append(InboxFile(url: url, originalName: originalName, data: data))
         }
+        return files
     }
 
     /// Deletes the given inbox file after successful import.

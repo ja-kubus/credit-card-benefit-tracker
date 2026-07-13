@@ -19,6 +19,9 @@ struct BenefitMatch: Identifiable {
     /// True when the matched transactions fall in the PREVIOUS period window
     /// (the statement covers a period that has already reset).
     let isFromPreviousPeriod: Bool
+    /// uploadHash of the statement the matched rows came from — recorded on the
+    /// completion so deleting that statement can undo the auto-check-off.
+    let sourceStatementHash: String
 
     /// Sum of all matched rows' amounts, capped at the benefit's dollarAmount.
     var totalMatchedAmount: Double {
@@ -38,7 +41,7 @@ enum BenefitMatcher {
     /// Checks both the current period window and the previous period window
     /// (common case: uploading last month's statement after the period rolled over).
     /// Returns at most one match per completion, carrying all matching rows.
-    static func findMatches(card: UserCard, in rows: [StatementRow]) -> [BenefitMatch] {
+    static func findMatches(card: UserCard, in rows: [StatementRow], sourceHash: String) -> [BenefitMatch] {
         var matches: [BenefitMatch] = []
 
         for completion in card.completions {
@@ -60,7 +63,8 @@ enum BenefitMatcher {
                     completion: completion,
                     matchedRows: currentRows,
                     cardName: card.name,
-                    isFromPreviousPeriod: false
+                    isFromPreviousPeriod: false,
+                    sourceStatementHash: sourceHash
                 ))
                 continue
             }
@@ -76,7 +80,8 @@ enum BenefitMatcher {
                     completion: completion,
                     matchedRows: previousRows,
                     cardName: card.name,
-                    isFromPreviousPeriod: true
+                    isFromPreviousPeriod: true,
+                    sourceStatementHash: sourceHash
                 ))
             }
         }
@@ -255,6 +260,7 @@ struct BenefitMatchReviewSheet: View {
             if match.isFromPreviousPeriod { continue }
 
             let completion = match.completion
+            completion.autoCheckSourceHash = match.sourceStatementHash
             if match.isFullMatch {
                 completion.isCompleted = true
                 completion.partialUsage = ""

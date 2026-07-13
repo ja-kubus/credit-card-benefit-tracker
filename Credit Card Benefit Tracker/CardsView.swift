@@ -1326,13 +1326,27 @@ struct StatementDetailPopup: View {
         }
         .confirmationDialog("Delete Statement?", isPresented: $showDeleteConfirm) {
             Button("Delete", role: .destructive) {
+                // Undo any benefit check-offs this statement's transactions caused
+                // (manual check-offs have an empty autoCheckSourceHash and are kept).
+                let hash = statement.uploadHash
+                let descriptor = FetchDescriptor<BenefitCompletion>(
+                    predicate: #Predicate { $0.autoCheckSourceHash == hash }
+                )
+                if let autoChecked = try? modelContext.fetch(descriptor) {
+                    for completion in autoChecked {
+                        completion.isCompleted = false
+                        completion.partialUsage = ""
+                        completion.autoCheckSourceHash = ""
+                    }
+                }
+
                 modelContext.delete(statement)
                 try? modelContext.save()
                 onClose()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Are you sure you want to delete this statement? This action cannot be undone.")
+            Text("Are you sure you want to delete this statement? This action cannot be undone. Benefits that were auto-checked from this statement will be unchecked; its transactions and points are removed.")
         }
         .sheet(item: $selectedRowID) { rowID in
             StatementRowCategoryEditor(

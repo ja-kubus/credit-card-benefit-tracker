@@ -32,6 +32,20 @@ struct ContentView: View {
     @State private var sharedInboxFiles: [SharedInbox.InboxFile] = []
 
     private func checkSharedInbox() {
+        // Delay the first check: on a cold launch the view isn't attached yet
+        // (an immediate sheet presentation gets dropped), and the Share
+        // Extension may still be finishing its file copy when the app
+        // foregrounds. One delayed check + one retry covers both races.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            presentSharedInboxIfNeeded()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                presentSharedInboxIfNeeded()
+            }
+        }
+    }
+
+    private func presentSharedInboxIfNeeded() {
+        guard !showSharedImport, !showSharedUploadSheet else { return }
         let pending = SharedInbox.pendingFiles()
         if !pending.isEmpty {
             sharedInboxFiles = pending
