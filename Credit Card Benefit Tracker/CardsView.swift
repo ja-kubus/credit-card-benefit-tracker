@@ -32,15 +32,53 @@ struct CardsView: View {
     @State private var showDetailView: Bool = false
     @Namespace var animation
 
+    // Portfolio sub-tab + spending date range + per-card filter (nil = all cards)
+    @State private var portfolioTab: PortfolioTab = .overview
+    @State private var spendingRange: SpendingRange = .last3Months
+    @State private var spendingCardFilter: PersistentIdentifier? = nil
+
     private let columns = [
         GridItem(.flexible(), spacing: 16),
         GridItem(.flexible(), spacing: 16)
     ]
-    
+
     enum ViewMode {
         case grid
         case accordion
         case portfolio
+    }
+
+    enum PortfolioTab: String, CaseIterable {
+        case overview = "Overview"
+        case spending = "Spending"
+    }
+
+    enum SpendingRange: String, CaseIterable, Identifiable {
+        case thisMonth = "This Month"
+        case last3Months = "Last 3 Months"
+        case thisYear = "This Year"
+        case last12Months = "Last 12 Months"
+        case allTime = "All Time"
+
+        var id: String { rawValue }
+
+        /// Inclusive lower bound for `transactionDate`, or nil for all-time.
+        var startDate: Date? {
+            let cal = Calendar.current
+            let now = Date()
+            switch self {
+            case .thisMonth:
+                return cal.date(from: cal.dateComponents([.year, .month], from: now))
+            case .last3Months:
+                return cal.date(byAdding: .month, value: -3, to: now)
+            case .thisYear:
+                return cal.date(from: cal.dateComponents([.year], from: now))
+            case .last12Months:
+                return cal.date(byAdding: .year, value: -1, to: now)
+            case .allTime:
+                return nil
+            }
+        }
     }
     
     var isCardSelected: Bool {
@@ -346,6 +384,28 @@ struct CardsView: View {
     }
 
     private var portfolioView: some View {
+        VStack(spacing: 0) {
+            Picker("View", selection: $portfolioTab) {
+                ForEach(PortfolioTab.allCases, id: \.self) { tab in
+                    Text(tab.rawValue).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .background(Color(.systemGroupedBackground))
+
+            switch portfolioTab {
+            case .overview:
+                portfolioOverviewContent
+            case .spending:
+                spendingBreakdownContent
+            }
+        }
+        .background(Color(.systemGroupedBackground))
+    }
+
+    private var portfolioOverviewContent: some View {
         ScrollView {
             VStack(spacing: 16) {
                 // MARK: Summary header
@@ -432,7 +492,208 @@ struct CardsView: View {
             }
             .padding(.top, 12)
         }
-        .background(Color(.systemGroupedBackground))
+    }
+
+    // MARK: - Spending Breakdown
+
+    /// One category's aggregated spend across all cards/statements in range.
+    private struct SpendingSlice: Identifiable {
+        let category: String
+        let amount: Double
+        let count: Int
+        var id: String { category }
+    }
+
+    /// Aggregates all statement rows across every card into per-category totals,
+    /// filtered by the selected date range.
+    private var spendingSlices: [SpendingSlice] {
+        let start = spendingRange.startDate
+        var totals: [String: (amount: Double, count: Int)] = [:]
+        for card in userCards {
+            if let filter = spendingCardFilter, card.persistentModelID != filter { continue }
+            for statement in card.statements {
+                for row in statement.rows {
+                    if let start, row.transactionDate < start { continue }
+                    let key = row.category.isEmpty ? "Other" : row.category
+                    let entry = totals[key] ?? (0, 0)
+                    totals[key] = (entry.amount + row.amount, entry.count + 1)
+                }
+            }
+        }
+        return totals
+            .map { SpendingSlice(category: $0.key, amount: $0.value.amount, count: $0.value.count) }
+            .sorted { $0.amount > $1.amount }
+    }
+
+    /// Stable color for a category, cycling through the theme palette.
+    private func spendingColor(for category: String) -> Color {
+        let palette: [Color] = [.appCoral, .appGiraffe, .appLeaf, .appBell, .appCoralDark,
+                                Color(red: 0.42, green: 0.62, blue: 0.78),   // muted blue
+                                Color(red: 0.62, green: 0.51, blue: 0.78),   // muted purple
+                                Color(red: 0.85, green: 0.55, blue: 0.62)]   // dusty rose
+        // Deterministic index from the category name.
+        let hash = category.unicodeScalars.reduce(0) { $0 &+ Int($1.value) }
+        return palette[hash % palette.count]
+    }
+
+    private func spendingCardChip(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.caption.weight(.medium))
+                .lineLimit(1)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(isSelected ? Color.appCoral : Color(.secondarySystemGroupedBackground))
+                .foregroundStyle(isSelected ? .white : Color.primary)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var spendingBreakdownContent: some View {
+        let slices = spendingSlices
+        let total = slices.reduce(0.0) { $0 + $1.amount }
+        let txnCount = slices.reduce(0) { $0 + $1.count }
+
+        return ScrollView {
+            VStack(spacing: 16) {
+                // Date range selector
+                HStack {
+                    Text("Date Range")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Menu {
+                        ForEach(SpendingRange.allCases) { range in
+                            Button {
+                                spendingRange = range
+                            } label: {
+                                if spendingRange == range {
+                                    Label(range.rawValue, systemImage: "checkmark")
+                                } else {
+                                    Text(range.rawValue)
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(spendingRange.rawValue)
+                                .font(.subheadline)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(Color.appCoral)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.top, 8)
+
+                // Per-card filter chips (only when there's more than one card)
+                if userCards.count > 1 {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            spendingCardChip(title: "All Cards", isSelected: spendingCardFilter == nil) {
+                                spendingCardFilter = nil
+                            }
+                            ForEach(userCards) { card in
+                                spendingCardChip(
+                                    title: card.name,
+                                    isSelected: spendingCardFilter == card.persistentModelID
+                                ) {
+                                    spendingCardFilter = card.persistentModelID
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                }
+
+                if slices.isEmpty {
+                    ContentUnavailableView(
+                        "No Spending Data",
+                        systemImage: "chart.pie",
+                        description: Text("Upload statements to see your spending broken down by category. Try a wider date range if you've already uploaded some.")
+                    )
+                    .padding(.top, 40)
+                } else {
+                    // Summary header
+                    VStack(spacing: 8) {
+                        Text("Total Spend")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(total, format: .currency(code: "USD").precision(.fractionLength(0)))
+                                .font(.system(size: 32, weight: .bold, design: .rounded))
+                            Spacer()
+                            Text("\(txnCount) transaction\(txnCount == 1 ? "" : "s")")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        // Stacked proportion bar
+                        GeometryReader { geo in
+                            HStack(spacing: 1) {
+                                ForEach(slices) { slice in
+                                    spendingColor(for: slice.category)
+                                        .frame(width: max(1, geo.size.width * (slice.amount / max(total, 0.01))))
+                                }
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                        }
+                        .frame(height: 12)
+                        .padding(.top, 4)
+                    }
+                    .padding()
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .cornerRadius(16)
+                    .padding(.horizontal)
+
+                    // Per-category rows
+                    VStack(spacing: 10) {
+                        ForEach(slices) { slice in
+                            let pct = total > 0 ? slice.amount / total : 0
+                            HStack(spacing: 12) {
+                                Circle()
+                                    .fill(spendingColor(for: slice.category))
+                                    .frame(width: 12, height: 12)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    HStack {
+                                        Text(slice.category)
+                                            .font(.subheadline.weight(.medium))
+                                        Spacer()
+                                        Text(slice.amount, format: .currency(code: "USD").precision(.fractionLength(0)))
+                                            .font(.subheadline.weight(.semibold))
+                                    }
+                                    GeometryReader { geo in
+                                        ZStack(alignment: .leading) {
+                                            Capsule().fill(Color(.tertiarySystemFill))
+                                            Capsule()
+                                                .fill(spendingColor(for: slice.category))
+                                                .frame(width: max(2, geo.size.width * pct))
+                                        }
+                                    }
+                                    .frame(height: 6)
+                                    HStack {
+                                        Text("\(Int(pct * 100))% of spend")
+                                        Spacer()
+                                        Text("\(slice.count) txn\(slice.count == 1 ? "" : "s")")
+                                    }
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding()
+                            .background(Color(.secondarySystemGroupedBackground))
+                            .cornerRadius(12)
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+
+                Spacer(minLength: 32)
+            }
+            .padding(.top, 8)
+        }
     }
 
     private func annualizedBenefitValue(for card: UserCard) -> Double {
