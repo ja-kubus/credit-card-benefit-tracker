@@ -436,7 +436,7 @@ class StatementParser {
                 let range = NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)
                 if regex.firstMatch(in: trimmed, range: range) != nil {
                     // Save previous transaction if exists
-                    if let date = currentDate, !currentMerchant.isEmpty {
+                    if currentDate != nil, !currentMerchant.isEmpty {
                         print("      ⚠️  Transaction without amount: \(currentMerchant)")
                     }
                     
