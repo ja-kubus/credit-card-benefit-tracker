@@ -454,16 +454,6 @@ struct StatementUploadSheet: View {
                             continue
                         }
 
-                        // Check for duplicate FILENAME (same statement name already exists)
-                        let hasSameName = card.statements.contains { statement in
-                            statement.fileName.lowercased() == parsedStatement.fileName.lowercased()
-                        }
-
-                        if hasSameName {
-                            failures.append("\(file.fileName): A statement with this name already exists for this card. Delete it first to re-upload.")
-                            continue
-                        }
-
                         // Check for DUPLICATE TRANSACTIONS (same date, merchant, amount)
                         let existingRows = card.statements.flatMap { $0.rows }
                         var duplicateCount = 0
@@ -497,6 +487,23 @@ struct StatementUploadSheet: View {
                             issuer: parsedStatement.issuer
                         )
                         newStatement.statementMonth = inferredStatementMonth(from: filteredRows)
+
+                        // Normalize the statement name so it is uniform across all issuers:
+                        // "<catalogCardID>_<issuer>_<Mon yyyy>", e.g.
+                        // "chase_sapphire_preferred_Chase_Jun 2026".
+                        let normalizedName = Self.normalizedStatementName(
+                            catalogCardID: card.catalogCardID,
+                            issuer: parsedStatement.issuer,
+                            month: newStatement.statementMonth
+                        )
+
+                        // A statement for the same card + month already exists → treat as a duplicate.
+                        if card.statements.contains(where: { $0.fileName.lowercased() == normalizedName.lowercased() }) {
+                            failures.append("\(file.fileName): A statement for \(Self.monthLabel(newStatement.statementMonth)) already exists for this card. Delete it first to re-upload.")
+                            continue
+                        }
+                        newStatement.fileName = normalizedName
+
                         newStatement.rows = filteredRows
                         // Overwrite the timestamp-based hash from Statement.init with a stable
                         // content digest so future duplicate checks work across launches.
@@ -585,6 +592,19 @@ struct StatementUploadSheet: View {
     /// Stable content-based digest of the file's data (SHA-256, hex-encoded).
     private func generateUploadHash(for data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// "MMM yyyy" label for a statement month, e.g. "Jun 2026".
+    static func monthLabel(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "MMM yyyy"
+        return f.string(from: date)
+    }
+
+    /// Uniform statement name across all issuers: "<catalogCardID>_<issuer>_<Mon yyyy>".
+    static func normalizedStatementName(catalogCardID: String, issuer: String, month: Date) -> String {
+        "\(catalogCardID)_\(issuer)_\(monthLabel(month))"
     }
 }
 

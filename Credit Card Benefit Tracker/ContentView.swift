@@ -10,9 +10,27 @@ import SwiftData
 
 struct ContentView: View {
     @AppStorage("hasCompletedTutorial") private var hasCompletedTutorial = false
+    @AppStorage("didNormalizeStatementNames") private var didNormalizeStatementNames = false
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.modelContext) private var modelContext
     @Query private var userCards: [UserCard]
     @Query private var completions: [BenefitCompletion]
+
+    /// One-time migration: rename statements uploaded before names were
+    /// normalized to the uniform "<catalogCardID>_<issuer>_<Mon yyyy>" format.
+    private func normalizeExistingStatementNames() {
+        guard !didNormalizeStatementNames else { return }
+        let all = (try? modelContext.fetch(FetchDescriptor<Statement>())) ?? []
+        for statement in all {
+            statement.fileName = StatementUploadSheet.normalizedStatementName(
+                catalogCardID: statement.cardID,
+                issuer: statement.issuers,
+                month: statement.statementMonth
+            )
+        }
+        try? modelContext.save()
+        didNormalizeStatementNames = true
+    }
 
     @State private var widgetSyncTask: Task<Void, Never>? = nil
     @State private var notifRescheduleTask: Task<Void, Never>? = nil
@@ -78,6 +96,10 @@ struct ContentView: View {
                     .tabItem {
                         Label("Best Card", systemImage: "star.circle.fill")
                     }
+                SubscriptionsView()
+                    .tabItem {
+                        Label("Subscriptions", systemImage: "repeat.circle.fill")
+                    }
                 SettingsView()
                     .tabItem{
                         Label("Settings", systemImage: "gearshape.fill")
@@ -102,6 +124,7 @@ struct ContentView: View {
             debouncedNotificationReschedule()
         }
         .onAppear {
+            normalizeExistingStatementNames()
             WidgetDataWriter.sync(userCards: userCards)
             NotificationScheduler.requestPermission()
             checkSharedInbox()

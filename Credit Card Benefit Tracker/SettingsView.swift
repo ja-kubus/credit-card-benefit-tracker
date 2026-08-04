@@ -19,6 +19,14 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    NavigationLink {
+                        NotificationsCenterView(userCards: userCards)
+                    } label: {
+                        Label("Notifications", systemImage: "bell.badge.fill")
+                    }
+                }
+
                 Section("Notifications") {
                     Text("Note: 'Missed' refers to benefits that were not completed before the end of their respective periods.")
                         .font(.caption.weight(.semibold))

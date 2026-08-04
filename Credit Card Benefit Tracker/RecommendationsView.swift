@@ -270,6 +270,44 @@ struct CardRecommendationEngine {
         ],
     ]
 
+    // Non-portal (direct booking) fallback rates.
+    // Only populated for (cardID, category) pairs that have a portalNote — i.e. where the
+    // elevated rate is portal-gated. When portals are excluded, these direct-booking
+    // multipliers are used instead. Cards that earn their rate directly are NOT listed here.
+    static let nonPortalRates: [String: [SpendingCategory: Double]] = [
+        "chase_sapphire_reserve": [
+            .hotels: 1, .airlines: 1
+        ],
+        "chase_sapphire_preferred": [
+            .hotels: 1, .airlines: 1
+        ],
+        "capital_one_venture_x": [
+            .hotels: 2, .carRentals: 2, .airlines: 2
+        ],
+        "capital_one_venture": [
+            .hotels: 2, .carRentals: 2
+        ],
+        "citi_strata_premier": [
+            .hotels: 3, .carRentals: 3
+        ],
+        "chase_freedom_unlimited": [
+            .airlines: 1.5
+        ],
+        "chase_freedom_flex": [
+            .airlines: 1
+        ],
+        "american_express_platinum_card": [
+            // Airlines is earned directly with the airline (not truly portal-gated) → keep 5x
+            .airlines: 5, .hotels: 1
+        ],
+        "american_express_gold_card": [
+            .airlines: 3
+        ],
+        "u.s._bank_altitude_reserve": [
+            .hotels: 1, .airlines: 1, .carRentals: 1
+        ],
+    ]
+
     // MARK: - Best Cards Logic
 
     struct CardResult {
@@ -283,7 +321,8 @@ struct CardRecommendationEngine {
 
     static func bestCards(
         for category: SpendingCategory,
-        from userCards: [UserCard]
+        from userCards: [UserCard],
+        excludePortal: Bool = false
     ) -> [CardResult] {
         var results: [CardResult] = []
 
@@ -292,9 +331,21 @@ struct CardRecommendationEngine {
             guard let program = programs[cardID] else { continue }
 
             let cardRates = rates[cardID] ?? [:]
-            let multiplier = cardRates[category] ?? cardRates[SpendingCategory.other] ?? 1.0
+            var portalNote = portalNotes[cardID]?[category]
+
+            let multiplier: Double
+            if excludePortal, portalNote != nil {
+                // This card's elevated rate for this category is portal-gated.
+                // Use the direct-booking (non-portal) rate instead, falling back to .other.
+                multiplier = nonPortalRates[cardID]?[category]
+                    ?? cardRates[SpendingCategory.other]
+                    ?? 1.0
+                portalNote = nil
+            } else {
+                multiplier = cardRates[category] ?? cardRates[SpendingCategory.other] ?? 1.0
+            }
+
             let effectiveReturnPct = multiplier * program.cpp / 100.0
-            let portalNote = portalNotes[cardID]?[category]
 
             results.append(CardResult(
                 card: card,
@@ -314,6 +365,7 @@ struct CardRecommendationEngine {
 
 struct RecommendationsView: View {
     @Query private var userCards: [UserCard]
+    @State private var excludePortalRates = false
 
     var body: some View {
         NavigationStack {
@@ -334,8 +386,22 @@ struct RecommendationsView: View {
 
     private var cardList: some View {
         List {
+            Section {
+                Toggle(isOn: $excludePortalRates) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Exclude portal-only rates")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Text("Show best cards for booking directly, not through card travel portals.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .tint(Color.appCoral)
+            }
+
             ForEach(SpendingCategory.allCases, id: \.self) { category in
-                let results = CardRecommendationEngine.bestCards(for: category, from: userCards)
+                let results = CardRecommendationEngine.bestCards(for: category, from: userCards, excludePortal: excludePortalRates)
                 if !results.isEmpty {
                     Section {
                         categoryRows(for: category, results: results)
@@ -406,6 +472,18 @@ struct RecommendationsView: View {
                         Text(r.card.name)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        if r.portalNote != nil {
+                            HStack(spacing: 2) {
+                                Image(systemName: "building.columns")
+                                Text("portal")
+                            }
+                            .font(.caption2)
+                            .fontWeight(.semibold)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.appGiraffe.opacity(0.2), in: Capsule())
+                            .foregroundStyle(Color.appGiraffe)
+                        }
                         Spacer()
                         Text(String(format: "%@ · %.1f%% return", multiplierString(r.multiplier), r.effectiveReturnPct * 100))
                             .font(.caption)

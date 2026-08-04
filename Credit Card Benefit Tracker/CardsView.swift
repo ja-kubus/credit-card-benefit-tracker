@@ -36,6 +36,8 @@ struct CardsView: View {
     @State private var portfolioTab: PortfolioTab = .overview
     @State private var spendingRange: SpendingRange = .last3Months
     @State private var spendingCardFilter: PersistentIdentifier? = nil
+    @State private var includeBenefitsUsage = true
+    @State private var includePointsUsage = true
 
     private let columns = [
         GridItem(.flexible(), spacing: 16),
@@ -435,11 +437,27 @@ struct CardsView: View {
                 .cornerRadius(16)
                 .padding(.horizontal)
 
+                // MARK: Recoup contributors toggle row
+                HStack(spacing: 16) {
+                    recoupToggle(title: "Benefits Usage", isOn: includeBenefitsUsage) {
+                        includeBenefitsUsage.toggle()
+                    }
+                    recoupToggle(title: "Points from Spend", isOn: includePointsUsage) {
+                        includePointsUsage.toggle()
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal)
+
                 // MARK: Per-card rows
                 VStack(spacing: 12) {
                     ForEach(userCards) { card in
                         let cycleAvailable = currentCycleValue(for: card)
                         let claimed = claimedThisCycle(for: card)
+                        let pointsValue = PointsValuer.dollarValueLast12Months(for: card)
+                        let benefitsPart = includeBenefitsUsage ? claimed : 0
+                        let pointsPart = includePointsUsage ? pointsValue : 0
+                        let contribution = benefitsPart + pointsPart + card.manualClaimedValue
 
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
@@ -469,16 +487,26 @@ struct CardsView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 Spacer()
-                                let totalTowardFee = claimed + card.manualClaimedValue
-                                if totalTowardFee >= card.annualFee {
+                                if contribution >= card.annualFee {
                                     Text("Fee recouped")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(Color.appLeaf)
                                 } else {
-                                    Text("$\(Int(card.annualFee - totalTowardFee)) to recoup fee")
+                                    Text("$\(Int(card.annualFee - contribution)) to recoup fee")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(.orange)
                                 }
+                            }
+
+                            let breakdown = recoupBreakdown(
+                                benefits: includeBenefitsUsage ? claimed : nil,
+                                points: includePointsUsage ? pointsValue : nil,
+                                prior: card.manualClaimedValue
+                            )
+                            if !breakdown.isEmpty {
+                                Text(breakdown)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
                             }
                         }
                         .padding()
@@ -733,6 +761,30 @@ struct CardsView: View {
             }
             return total
         }
+    }
+
+    /// Compact SF-Symbol checkbox used to toggle recoup contributors.
+    private func recoupToggle(title: String, isOn: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: isOn ? "checkmark.square.fill" : "square")
+                    .foregroundStyle(isOn ? Color.appCoral : Color.secondary)
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Builds a caption like "Benefits $120 + Points $85 + Prior $50" from active,
+    /// non-zero contributors.
+    private func recoupBreakdown(benefits: Double?, points: Double?, prior: Double) -> String {
+        var parts: [String] = []
+        if let benefits, benefits > 0 { parts.append("Benefits $\(Int(benefits))") }
+        if let points, points > 0 { parts.append("Points $\(Int(points))") }
+        if prior > 0 { parts.append("Prior $\(Int(prior))") }
+        return parts.joined(separator: " + ")
     }
 
     private func portfolioStat(label: String, value: Double, color: Color) -> some View {
