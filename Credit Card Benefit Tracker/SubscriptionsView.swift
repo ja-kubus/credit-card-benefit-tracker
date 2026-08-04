@@ -158,6 +158,11 @@ struct SubscriptionsView: View {
                 } else {
                     List {
                         Section {
+                            Text("Duplicate transactions over 2+ consecutive months")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 4, trailing: 16))
+                                .listRowSeparator(.hidden)
                             summaryHeader
                                 .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                                 .listRowSeparator(.hidden)
