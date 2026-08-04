@@ -850,7 +850,6 @@ struct CardDetailOverlay: View {
                 .zIndex(10)
 
             GeometryReader { proxy in
-                let height = proxy.size.height + 50
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 16) {
                         // Card info and delete button
@@ -1037,7 +1036,7 @@ struct PointsBreakdownView: View {
             // Only process highlights that matched specific categories
             guard !categories.isEmpty else { continue }
             
-            for (categoryName, categoryType) in categories {
+            for (_, categoryType) in categories {
                 // Avoid duplicates
                 let key = "\(multiplier)x_\(categoryType)"
                 if !seenCategories.contains(key) {
