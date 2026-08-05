@@ -34,10 +34,19 @@ struct CardsView: View {
 
     // Portfolio sub-tab + spending date range + per-card filter (nil = all cards)
     @State private var portfolioTab: PortfolioTab = .overview
-    @State private var spendingRange: SpendingRange = .last3Months
+    // User-selectable spending date range (defaults to the last ~3 months → today)
+    @State private var spendingStartDate: Date = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
+    @State private var spendingEndDate: Date = Date()
     @State private var spendingCardFilter: PersistentIdentifier? = nil
     @State private var includeBenefitsUsage = true
     @State private var includePointsUsage = true
+    @State private var hideNoFeeCards = false
+    @State private var selectedSpendingCategory: String? = nil
+
+    /// Cards shown in the wallet listings, optionally hiding no-annual-fee cards.
+    private var displayedCards: [UserCard] {
+        hideNoFeeCards ? userCards.filter { $0.annualFee > 0 } : userCards
+    }
 
     private let columns = [
         GridItem(.flexible(), spacing: 16),
@@ -55,34 +64,15 @@ struct CardsView: View {
         case spending = "Spending"
     }
 
-    enum SpendingRange: String, CaseIterable, Identifiable {
-        case thisMonth = "This Month"
-        case last3Months = "Last 3 Months"
-        case thisYear = "This Year"
-        case last12Months = "Last 12 Months"
-        case allTime = "All Time"
-
-        var id: String { rawValue }
-
-        /// Inclusive lower bound for `transactionDate`, or nil for all-time.
-        var startDate: Date? {
-            let cal = Calendar.current
-            let now = Date()
-            switch self {
-            case .thisMonth:
-                return cal.date(from: cal.dateComponents([.year, .month], from: now))
-            case .last3Months:
-                return cal.date(byAdding: .month, value: -3, to: now)
-            case .thisYear:
-                return cal.date(from: cal.dateComponents([.year], from: now))
-            case .last12Months:
-                return cal.date(byAdding: .year, value: -1, to: now)
-            case .allTime:
-                return nil
-            }
-        }
+    /// Inclusive [start-of-day(start), end-of-day(end)] bounds for the spending filter.
+    private var spendingDateBounds: (start: Date, end: Date) {
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: spendingStartDate)
+        let endDay = cal.startOfDay(for: spendingEndDate)
+        let end = cal.date(byAdding: .init(day: 1, second: -1), to: endDay) ?? spendingEndDate
+        return (start, end)
     }
-    
+
     var isCardSelected: Bool {
         return selectedCard != nil
     }
@@ -173,6 +163,10 @@ struct CardsView: View {
                         } else {
                             HStack(spacing: 16) {
                                 if !userCards.isEmpty {
+                                    hideNoFeeMenu
+                                }
+
+                                if !userCards.isEmpty {
                                     Button {
                                         showStatementUpload = true
                                     } label: {
@@ -205,6 +199,10 @@ struct CardsView: View {
                     } else {
                         // Accordion view buttons
                         HStack(spacing: 16) {
+                            if !userCards.isEmpty {
+                                hideNoFeeMenu
+                            }
+
                             if !userCards.isEmpty {
                                 Button {
                                     showStatementUpload = true
@@ -282,6 +280,20 @@ struct CardsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    /// Toolbar menu holding wallet display options (hide no-fee cards).
+    private var hideNoFeeMenu: some View {
+        Menu {
+            Toggle(isOn: $hideNoFeeCards) {
+                Label("Hide no-fee cards", systemImage: "creditcard")
+            }
+            .tint(Color.appCoral)
+        } label: {
+            Image(systemName: "line.3.horizontal.decrease.circle")
+                .fontWeight(.semibold)
+                .foregroundStyle(hideNoFeeCards ? Color.appCoral : Color.primary)
+        }
+    }
+
     private var accordionView: some View {
         VStack(spacing: 0) {
             // ── Lifted card ── fully separated at the top
@@ -309,11 +321,11 @@ struct CardsView: View {
             // ── Stacked remaining cards ──
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: -150) {
-                    ForEach(userCards) { card in
+                    ForEach(displayedCards) { card in
                         if liftedCard?.persistentModelID != card.persistentModelID {
                             CardThumbnail(card: card)
                                 .matchedGeometryEffect(id: card.persistentModelID, in: animation)
-                                .zIndex(Double(userCards.firstIndex(where: { $0.persistentModelID == card.persistentModelID }) ?? 0))
+                                .zIndex(Double(displayedCards.firstIndex(where: { $0.persistentModelID == card.persistentModelID }) ?? 0))
                                 .padding(.horizontal, 20)
                                 .onTapGesture {
                                     // Single tap → lift this card, return previous lifted card to stack
@@ -340,7 +352,7 @@ struct CardsView: View {
     private var gridView: some View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 16) {
-                ForEach(userCards) { card in
+                ForEach(displayedCards) { card in
                     let isSelected = selectedForDeletion.contains(card.persistentModelID)
 
                     ZStack(alignment: .topTrailing) {
@@ -451,7 +463,7 @@ struct CardsView: View {
 
                 // MARK: Per-card rows
                 VStack(spacing: 12) {
-                    ForEach(userCards) { card in
+                    ForEach(displayedCards) { card in
                         let cycleAvailable = currentCycleValue(for: card)
                         let claimed = claimedThisCycle(for: card)
                         let pointsValue = PointsValuer.dollarValueLast12Months(for: card)
@@ -535,13 +547,13 @@ struct CardsView: View {
     /// Aggregates all statement rows across every card into per-category totals,
     /// filtered by the selected date range.
     private var spendingSlices: [SpendingSlice] {
-        let start = spendingRange.startDate
+        let bounds = spendingDateBounds
         var totals: [String: (amount: Double, count: Int)] = [:]
         for card in userCards {
             if let filter = spendingCardFilter, card.persistentModelID != filter { continue }
             for statement in card.statements {
                 for row in statement.rows {
-                    if let start, row.transactionDate < start { continue }
+                    if row.transactionDate < bounds.start || row.transactionDate > bounds.end { continue }
                     let key = row.category.isEmpty ? "Other" : row.category
                     let entry = totals[key] ?? (0, 0)
                     totals[key] = (entry.amount + row.amount, entry.count + 1)
@@ -551,6 +563,24 @@ struct CardsView: View {
         return totals
             .map { SpendingSlice(category: $0.key, amount: $0.value.amount, count: $0.value.count) }
             .sorted { $0.amount > $1.amount }
+    }
+
+    /// The individual statement rows for a single category, respecting the current
+    /// date range and card filter. Sorted by date descending.
+    private func spendingRows(for category: String) -> [StatementRow] {
+        let bounds = spendingDateBounds
+        var rows: [StatementRow] = []
+        for card in userCards {
+            if let filter = spendingCardFilter, card.persistentModelID != filter { continue }
+            for statement in card.statements {
+                for row in statement.rows {
+                    if row.transactionDate < bounds.start || row.transactionDate > bounds.end { continue }
+                    let key = row.category.isEmpty ? "Other" : row.category
+                    if key == category { rows.append(row) }
+                }
+            }
+        }
+        return rows.sorted { $0.transactionDate > $1.transactionDate }
     }
 
     /// Stable color for a category, cycling through the theme palette.
@@ -585,32 +615,32 @@ struct CardsView: View {
 
         return ScrollView {
             VStack(spacing: 16) {
-                // Date range selector
-                HStack {
-                    Text("Date Range")
-                        .font(.subheadline.weight(.semibold))
-                    Spacer()
-                    Menu {
-                        ForEach(SpendingRange.allCases) { range in
-                            Button {
-                                spendingRange = range
-                            } label: {
-                                if spendingRange == range {
-                                    Label(range.rawValue, systemImage: "checkmark")
-                                } else {
-                                    Text(range.rawValue)
-                                }
-                            }
+                // Date range selector — tap either date to pick from a calendar
+                VStack(spacing: 8) {
+                    HStack {
+                        Text("Date Range")
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                        Button("Reset") {
+                            spendingStartDate = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
+                            spendingEndDate = Date()
                         }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(spendingRange.rawValue)
-                                .font(.subheadline)
-                            Image(systemName: "chevron.up.chevron.down")
-                                .font(.caption2)
-                        }
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.appCoral)
                     }
+                    HStack(spacing: 12) {
+                        DatePicker("From", selection: $spendingStartDate, in: ...spendingEndDate, displayedComponents: .date)
+                            .datePickerStyle(.compact)
+                            .labelsHidden()
+                        Image(systemName: "arrow.right")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        DatePicker("To", selection: $spendingEndDate, in: spendingStartDate...Date(), displayedComponents: .date)
+                            .datePickerStyle(.compact)
+                            .labelsHidden()
+                        Spacer()
+                    }
+                    .tint(Color.appCoral)
                 }
                 .padding(.horizontal)
                 .padding(.top, 8)
@@ -680,39 +710,48 @@ struct CardsView: View {
                     VStack(spacing: 10) {
                         ForEach(slices) { slice in
                             let pct = total > 0 ? slice.amount / total : 0
-                            HStack(spacing: 12) {
-                                Circle()
-                                    .fill(spendingColor(for: slice.category))
-                                    .frame(width: 12, height: 12)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    HStack {
-                                        Text(slice.category)
-                                            .font(.subheadline.weight(.medium))
-                                        Spacer()
-                                        Text(slice.amount, format: .currency(code: "USD").precision(.fractionLength(0)))
-                                            .font(.subheadline.weight(.semibold))
-                                    }
-                                    GeometryReader { geo in
-                                        ZStack(alignment: .leading) {
-                                            Capsule().fill(Color(.tertiarySystemFill))
-                                            Capsule()
-                                                .fill(spendingColor(for: slice.category))
-                                                .frame(width: max(2, geo.size.width * pct))
+                            Button {
+                                selectedSpendingCategory = slice.category
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Circle()
+                                        .fill(spendingColor(for: slice.category))
+                                        .frame(width: 12, height: 12)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        HStack {
+                                            Text(slice.category)
+                                                .font(.subheadline.weight(.medium))
+                                            Spacer()
+                                            Text(slice.amount, format: .currency(code: "USD").precision(.fractionLength(0)))
+                                                .font(.subheadline.weight(.semibold))
+                                            Image(systemName: "chevron.right")
+                                                .font(.caption2.weight(.semibold))
+                                                .foregroundStyle(.tertiary)
                                         }
+                                        GeometryReader { geo in
+                                            ZStack(alignment: .leading) {
+                                                Capsule().fill(Color(.tertiarySystemFill))
+                                                Capsule()
+                                                    .fill(spendingColor(for: slice.category))
+                                                    .frame(width: max(2, geo.size.width * pct))
+                                            }
+                                        }
+                                        .frame(height: 6)
+                                        HStack {
+                                            Text("\(Int(pct * 100))% of spend")
+                                            Spacer()
+                                            Text("\(slice.count) txn\(slice.count == 1 ? "" : "s")")
+                                        }
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
                                     }
-                                    .frame(height: 6)
-                                    HStack {
-                                        Text("\(Int(pct * 100))% of spend")
-                                        Spacer()
-                                        Text("\(slice.count) txn\(slice.count == 1 ? "" : "s")")
-                                    }
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
                                 }
+                                .padding()
+                                .background(Color(.secondarySystemGroupedBackground))
+                                .cornerRadius(12)
+                                .contentShape(Rectangle())
                             }
-                            .padding()
-                            .background(Color(.secondarySystemGroupedBackground))
-                            .cornerRadius(12)
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.horizontal)
@@ -721,6 +760,15 @@ struct CardsView: View {
                 Spacer(minLength: 32)
             }
             .padding(.top, 8)
+        }
+        .sheet(item: Binding(
+            get: { selectedSpendingCategory.map(IdentifiableString.init) },
+            set: { selectedSpendingCategory = $0?.value }
+        )) { holder in
+            SpendingCategoryDetailSheet(
+                category: holder.value,
+                rows: spendingRows(for: holder.value)
+            )
         }
     }
 
@@ -823,6 +871,71 @@ struct CardsView: View {
     private func exitDeletionMode() {
         isDeleting = false
         selectedForDeletion.removeAll()
+    }
+}
+
+// MARK: - Spending Category Detail
+
+/// Lightweight Identifiable wrapper so a plain String can drive `.sheet(item:)`.
+private struct IdentifiableString: Identifiable {
+    let value: String
+    var id: String { value }
+    init(_ value: String) { self.value = value }
+}
+
+/// Popup listing every transaction in a single spending category.
+struct SpendingCategoryDetailSheet: View {
+    let category: String
+    let rows: [StatementRow]
+    @Environment(\.dismiss) private var dismiss
+
+    private var total: Double { rows.reduce(0.0) { $0 + $1.amount } }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    HStack {
+                        Text("Total")
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                        Text(total, format: .currency(code: "USD"))
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(Color.appLeaf)
+                    }
+                    Text("\(rows.count) transaction\(rows.count == 1 ? "" : "s")")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section {
+                    ForEach(rows) { row in
+                        HStack(alignment: .firstTextBaseline) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(row.transactionDescription.isEmpty ? category : row.transactionDescription)
+                                    .font(.subheadline)
+                                    .lineLimit(2)
+                                Text(row.transactionDate, format: .dateTime.year().month().day())
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text(row.amount, format: .currency(code: "USD"))
+                                .font(.subheadline.weight(.semibold))
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            }
+            .navigationTitle(category)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .foregroundStyle(Color.appCoral)
+                }
+            }
+        }
     }
 }
 

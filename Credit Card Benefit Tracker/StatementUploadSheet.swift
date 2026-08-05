@@ -215,38 +215,56 @@ struct StatementUploadSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("4. Statement Month")
                                 .font(.subheadline.weight(.semibold))
-                            Text("Auto-detected from the transactions in each file. Change these pickers only if you want to override the detected month.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
 
-                            HStack(spacing: 8) {
-                                Picker("Month", selection: $selectedStatementMonth) {
-                                    ForEach(1...12, id: \.self) { month in
-                                        Text(Self.monthNames[month - 1]).tag(month)
-                                    }
+                            if selectedFiles.count > 1 {
+                                // With multiple files, each statement's month is inferred
+                                // per-file from its own transactions, so a single picker
+                                // would be misleading. Show an informational note instead.
+                                HStack(alignment: .top, spacing: 8) {
+                                    Image(systemName: "info.circle")
+                                        .foregroundStyle(.secondary)
+                                    Text("Each statement's month is detected automatically from its transactions.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
                                 }
-                                .pickerStyle(.menu)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
-                                .padding(.horizontal, 12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding()
                                 .background(Color.gray.opacity(0.1))
                                 .cornerRadius(8)
-                                .onChange(of: selectedStatementMonth) {
-                                    userAdjustedMonth = true
-                                }
+                            } else {
+                                Text("Auto-detected from the transactions in the file. Change these pickers only if you want to override the detected month.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
 
-                                Picker("Year", selection: $selectedStatementYear) {
-                                    ForEach(yearOptions, id: \.self) { year in
-                                        Text(String(year)).tag(year)
+                                HStack(spacing: 8) {
+                                    Picker("Month", selection: $selectedStatementMonth) {
+                                        ForEach(1...12, id: \.self) { month in
+                                            Text(Self.monthNames[month - 1]).tag(month)
+                                        }
                                     }
-                                }
-                                .pickerStyle(.menu)
-                                .padding(.vertical, 8)
-                                .padding(.horizontal, 12)
-                                .background(Color.gray.opacity(0.1))
-                                .cornerRadius(8)
-                                .onChange(of: selectedStatementYear) {
-                                    userAdjustedMonth = true
+                                    .pickerStyle(.menu)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal, 12)
+                                    .background(Color.gray.opacity(0.1))
+                                    .cornerRadius(8)
+                                    .onChange(of: selectedStatementMonth) {
+                                        userAdjustedMonth = true
+                                    }
+
+                                    Picker("Year", selection: $selectedStatementYear) {
+                                        ForEach(yearOptions, id: \.self) { year in
+                                            Text(String(year)).tag(year)
+                                        }
+                                    }
+                                    .pickerStyle(.menu)
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal, 12)
+                                    .background(Color.gray.opacity(0.1))
+                                    .cornerRadius(8)
+                                    .onChange(of: selectedStatementYear) {
+                                        userAdjustedMonth = true
+                                    }
                                 }
                             }
                         }
@@ -388,12 +406,20 @@ struct StatementUploadSheet: View {
 
     /// Determine the statement month by majority vote over the parsed transactions.
     /// Falls back to the picker values if no rows or no valid date can be built.
-    private func inferredStatementMonth(from rows: [StatementRow]) -> Date {
+    /// - Parameter allowManualOverride: only true for single-file uploads, where the
+    ///   visible month picker is meaningful. For multi-file uploads each file's month
+    ///   is always inferred from its own transactions, never forced to the picker value.
+    private func inferredStatementMonth(from rows: [StatementRow], allowManualOverride: Bool) -> Date {
         let pickerDate = Calendar.current.date(
             from: DateComponents(year: selectedStatementYear, month: selectedStatementMonth, day: 1)
         ) ?? Date()
 
-        guard !userAdjustedMonth, !rows.isEmpty else { return pickerDate }
+        // Honor a manual picker override only in the single-file case.
+        if allowManualOverride, userAdjustedMonth {
+            return pickerDate
+        }
+
+        guard !rows.isEmpty else { return pickerDate }
 
         let cal = Calendar.current
         var counts: [DateComponents: Int] = [:]
@@ -486,11 +512,12 @@ struct StatementUploadSheet: View {
                             fileName: parsedStatement.fileName,
                             issuer: parsedStatement.issuer
                         )
-                        newStatement.statementMonth = inferredStatementMonth(from: filteredRows)
+                        newStatement.statementMonth = inferredStatementMonth(
+                            from: filteredRows,
+                            allowManualOverride: filesToProcess.count == 1
+                        )
 
-                        // Normalize the statement name so it is uniform across all issuers:
-                        // "<catalogCardID>_<issuer>_<Mon yyyy>", e.g.
-                        // "chase_sapphire_preferred_Chase_Jun 2026".
+                        // Compact, human-readable statement name, e.g. "CSR · Jun '26".
                         let normalizedName = Self.normalizedStatementName(
                             catalogCardID: card.catalogCardID,
                             issuer: parsedStatement.issuer,
@@ -602,9 +629,84 @@ struct StatementUploadSheet: View {
         return f.string(from: date)
     }
 
-    /// Uniform statement name across all issuers: "<catalogCardID>_<issuer>_<Mon yyyy>".
+    /// Compact "MMM ''yy" label for a statement month, e.g. "Jun '26".
+    static func shortMonthLabel(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "MMM ''yy"
+        return f.string(from: date)
+    }
+
+    /// Known-card abbreviations keyed by catalogCardID.
+    private static let cardAbbreviations: [String: String] = [
+        "chase_sapphire_reserve": "CSR",
+        "chase_sapphire_preferred": "CSP",
+        "chase_freedom_unlimited": "CFU",
+        "chase_freedom_flex": "CFF",
+        "american_express_platinum_card": "Amex Plat",
+        "american_express_gold_card": "Amex Gold",
+        "american_express_hilton_honors_aspire_card": "Hilton Aspire",
+        "american_express_hilton_honors_surpass_card": "Hilton Surpass",
+        "capital_one_venture_x": "Venture X",
+        "capital_one_venture": "Venture",
+        "citi_strata_premier": "Strata Premier",
+        "citi_double_cash": "Double Cash",
+        "discover_it_cash_back": "Discover it"
+    ]
+
+    /// Short issuer abbreviation used when falling back to a derived label.
+    private static func issuerAbbrev(_ issuer: String) -> String {
+        switch issuer {
+        case "American Express": return "Amex"
+        case "Capital One": return "C1"
+        case "Bank of America": return "BofA"
+        case "U.S. Bank": return "USB"
+        case "Wells Fargo": return "WF"
+        default: return issuer
+        }
+    }
+
+    /// A compact, human-readable card label derived from catalogCardID + issuer.
+    /// Uses a curated abbreviation map for common cards, and otherwise strips the
+    /// issuer prefix from the catalogCardID, title-cases the remainder, and prefixes
+    /// the issuer abbreviation, capping the length.
+    static func abbreviatedCardLabel(catalogCardID: String, issuer: String) -> String {
+        if let known = cardAbbreviations[catalogCardID] {
+            return known
+        }
+
+        let issuerAbbr = issuerAbbrev(issuer)
+
+        // Strip a leading issuer prefix from the catalogCardID (e.g. "chase_",
+        // "american_express_") so we don't repeat the issuer in the label.
+        let issuerPrefix = issuer.lowercased()
+            .replacingOccurrences(of: ".", with: "")
+            .replacingOccurrences(of: " ", with: "_")
+        var remainder = catalogCardID
+        if remainder.hasPrefix(issuerPrefix + "_") {
+            remainder = String(remainder.dropFirst(issuerPrefix.count + 1))
+        }
+
+        let words = remainder
+            .replacingOccurrences(of: "_", with: " ")
+            .split(separator: " ")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+        var cardPortion = words.joined(separator: " ")
+        if cardPortion.count > 18 {
+            cardPortion = String(cardPortion.prefix(18)).trimmingCharacters(in: .whitespaces)
+        }
+
+        if cardPortion.isEmpty {
+            return issuerAbbr
+        }
+        return "\(issuerAbbr) \(cardPortion)"
+    }
+
+    /// Compact, human-readable statement name: "<AbbrevCard> · <Mon ''yy>",
+    /// e.g. "CSR · Jun '26". Still unique per card + month, so the duplicate
+    /// (same card + month) check keeps working.
     static func normalizedStatementName(catalogCardID: String, issuer: String, month: Date) -> String {
-        "\(catalogCardID)_\(issuer)_\(monthLabel(month))"
+        "\(abbreviatedCardLabel(catalogCardID: catalogCardID, issuer: issuer)) · \(shortMonthLabel(month))"
     }
 }
 

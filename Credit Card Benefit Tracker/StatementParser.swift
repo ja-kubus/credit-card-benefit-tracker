@@ -455,6 +455,14 @@ class StatementParser {
             // If we have a date and this line contains $ (with or without diamond), it's the amount
             if let date = currentDate, trimmed.contains("$") {
                 if let amount = parseAmount(trimmed) {
+                    // Skip summary fields (e.g. "New Balance", "Previous Balance") that
+                    // should never be treated as purchased transactions.
+                    if isSummaryLine(currentMerchant) || isSummaryLine(trimmed) {
+                        print("      ⊘ Skipped summary line: \(currentMerchant.isEmpty ? trimmed : currentMerchant)")
+                        currentDate = nil
+                        currentMerchant = ""
+                        continue
+                    }
                     let category = CategoryDetector.detect(merchant: currentMerchant, issuer: "amex")
                     let row = StatementRow(
                         transactionDate: date,
@@ -556,7 +564,8 @@ class StatementParser {
                     let description = descriptionParts.joined(separator: " ")
                     
                     guard !description.isEmpty else { continue }
-                    
+                    guard !isSummaryLine(description) else { continue }
+
                     let category = CategoryDetector.detect(merchant: description, issuer: "capital one")
                     let row = StatementRow(
                         transactionDate: transDate,
@@ -653,7 +662,8 @@ class StatementParser {
                     let description = descriptionParts.joined(separator: " ")
                     
                     guard !description.isEmpty else { continue }
-                    
+                    guard !isSummaryLine(description) else { continue }
+
                     let category = CategoryDetector.detect(merchant: description, issuer: "discover")
                     let row = StatementRow(
                         transactionDate: transDate,
@@ -754,7 +764,8 @@ class StatementParser {
                     let description = descriptionParts.joined(separator: " ")
                     
                     guard !description.isEmpty else { continue }
-                    
+                    guard !isSummaryLine(description) else { continue }
+
                     let category = CategoryDetector.detect(merchant: description, issuer: issuer.lowercased())
                     let row = StatementRow(
                         transactionDate: transDate,
@@ -868,7 +879,11 @@ class StatementParser {
                         print("      ⚠️  Empty description")
                         continue
                     }
-                    
+                    guard !isSummaryLine(description) else {
+                        print("      ⊘ Skipped summary line: \(description)")
+                        continue
+                    }
+
                     let category = CategoryDetector.detect(merchant: description, issuer: "citi")
                     let row = StatementRow(
                         transactionDate: transDate,
@@ -895,7 +910,38 @@ class StatementParser {
     }
     
     // MARK: - Helper Functions
-    
+
+    /// Returns true if the given text is a statement summary field (e.g. "New Balance",
+    /// "Previous Balance", "Minimum Payment Due") rather than a real purchased transaction.
+    /// Used to prevent summary lines from being picked up as merchants.
+    private static func isSummaryLine(_ text: String) -> Bool {
+        let lower = text.lowercased().trimmingCharacters(in: .whitespaces)
+        let summaryPhrases = [
+            "new balance",
+            "previous balance",
+            "total balance",
+            "minimum payment due",
+            "minimum payment",
+            "payment due",
+            "past due",
+            "account summary",
+            "credit limit",
+            "available credit",
+            "balance transfer",
+            "cash advance balance"
+        ]
+        for phrase in summaryPhrases where lower.contains(phrase) {
+            return true
+        }
+        // Only treat a bare "balance" as a summary field when the description is
+        // short (i.e. it's clearly the balance field, not a merchant name that
+        // happens to include the word).
+        if lower == "balance" || (lower.contains("balance") && lower.count <= 20) {
+            return true
+        }
+        return false
+    }
+
     private static func parseCSVLine(_ line: String) -> [String] {
         var result: [String] = []
         var currentField = ""

@@ -103,10 +103,12 @@ struct CardRecommendationEngine {
             .hotels: 7, .dining: 5, .groceries: 5, .gas: 5, .other: 3
         ],
         "chase_sapphire_reserve": [
-            .airlines: 4, .hotels: 4, .dining: 3, .other: 1
+            // Portal (Chase Travel) rates for travel; direct rates live in nonPortalRates.
+            .airlines: 8, .hotels: 8, .dining: 3, .transit: 3, .other: 1
         ],
         "chase_sapphire_preferred": [
-            .dining: 3, .gas: 3, .airlines: 2, .hotels: 2, .other: 1
+            // 5x travel via Chase Travel (portal); 2x on direct travel (nonPortalRates).
+            .dining: 3, .gas: 3, .airlines: 5, .hotels: 5, .other: 1
         ],
         "chase_freedom_unlimited": [
             .airlines: 5, .dining: 3, .drugstores: 3, .other: 1.5
@@ -205,12 +207,12 @@ struct CardRecommendationEngine {
             .airlines: "3x on flights booked directly with airlines or through Amex Travel"
         ],
         "chase_sapphire_reserve": [
-            .airlines: "4x on travel purchased through Chase Travel",
-            .hotels:   "4x on travel purchased through Chase Travel"
+            .airlines: "8x through Chase Travel · 4x booked direct with the airline",
+            .hotels:   "8x through Chase Travel · 4x booked direct with the hotel"
         ],
         "chase_sapphire_preferred": [
-            .airlines: "2x on travel purchased through Chase Travel",
-            .hotels:   "2x on travel purchased through Chase Travel"
+            .airlines: "5x through Chase Travel · 2x booked direct",
+            .hotels:   "5x through Chase Travel · 2x booked direct"
         ],
         "chase_freedom_unlimited": [
             .airlines: "5x on travel purchased through Chase Travel"
@@ -276,10 +278,12 @@ struct CardRecommendationEngine {
     // multipliers are used instead. Cards that earn their rate directly are NOT listed here.
     static let nonPortalRates: [String: [SpendingCategory: Double]] = [
         "chase_sapphire_reserve": [
-            .hotels: 1, .airlines: 1
+            // Booked direct with the airline/hotel (not via Chase Travel): 4x.
+            .hotels: 4, .airlines: 4
         ],
         "chase_sapphire_preferred": [
-            .hotels: 1, .airlines: 1
+            // Direct travel earns 2x.
+            .hotels: 2, .airlines: 2
         ],
         "capital_one_venture_x": [
             .hotels: 2, .carRentals: 2, .airlines: 2
@@ -389,10 +393,10 @@ struct RecommendationsView: View {
             Section {
                 Toggle(isOn: $excludePortalRates) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Exclude portal-only rates")
+                        Text("Exclude restricted rates")
                             .font(.subheadline)
                             .fontWeight(.semibold)
-                        Text("Show best cards for booking directly, not through card travel portals.")
+                        Text("Hide rates that require a travel portal or a specific loyalty program (e.g. Hilton stays, United flights). Shows what you'd earn booking freely.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -472,10 +476,11 @@ struct RecommendationsView: View {
                         Text(r.card.name)
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        if r.portalNote != nil {
+                        if let note = r.portalNote {
+                            let isPortal = note.lowercased().contains("travel") || note.lowercased().contains("portal")
                             HStack(spacing: 2) {
-                                Image(systemName: "building.columns")
-                                Text("portal")
+                                Image(systemName: isPortal ? "building.columns" : "star.circle")
+                                Text(isPortal ? "portal" : "loyalty")
                             }
                             .font(.caption2)
                             .fontWeight(.semibold)

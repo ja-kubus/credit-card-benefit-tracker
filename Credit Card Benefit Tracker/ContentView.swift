@@ -131,8 +131,14 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showSharedImport, onDismiss: {
             // If the user tapped Import, the coordinator holds the files —
-            // open the upload sheet pre-loaded with them.
-            if !SharedImportCoordinator.shared.filesToImport.isEmpty {
+            // open the upload sheet pre-loaded with them. Presenting the second
+            // sheet immediately inside onDismiss races the first sheet's
+            // dismissal animation and renders a blank sheet (the real one only
+            // appears after swiping it away). Wait for the dismissal to settle,
+            // and only present when there are actually files to import.
+            guard !SharedImportCoordinator.shared.filesToImport.isEmpty else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                guard !SharedImportCoordinator.shared.filesToImport.isEmpty else { return }
                 showSharedUploadSheet = true
             }
         }) {
