@@ -104,7 +104,8 @@ struct CardRecommendationEngine {
         ],
         "chase_sapphire_reserve": [
             // Portal (Chase Travel) rates for travel; direct rates live in nonPortalRates.
-            .airlines: 8, .hotels: 8, .dining: 3, .transit: 3, .other: 1
+            // (2026 refresh removed the former 3x transit category.)
+            .airlines: 8, .hotels: 8, .dining: 3, .other: 1
         ],
         "chase_sapphire_preferred": [
             // 5x travel via Chase Travel (portal); 2x on direct travel (nonPortalRates).
