@@ -238,8 +238,11 @@ struct EarningsTabContent: View {
                     .foregroundStyle(.secondary)
             }
 
+            // Green once the annual fee is fully recouped (or, for no-fee cards,
+            // once all potential value is claimed); coral while still in progress.
+            let fullyClaimed = card.annualFee > 0 ? claimed >= card.annualFee : progress >= 1.0
             ProgressView(value: progress, total: 1.0)
-                .tint(Color.appCoral)
+                .tint(fullyClaimed ? Color.appLeaf : Color.appCoral)
 
             // Breakdown
             VStack(alignment: .leading, spacing: 4) {
@@ -345,7 +348,7 @@ struct EarningsTabContent: View {
                                 ? "—"
                                 : totalAnnualValue.formatted(.currency(code: "USD").precision(.fractionLength(0))),
                             icon: "gift.fill",
-                            color: .appGiraffe
+                            color: .appLeaf
                         )
                     }
                     .padding(.horizontal, 20)

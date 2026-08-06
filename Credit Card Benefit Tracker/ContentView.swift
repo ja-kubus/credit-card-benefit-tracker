@@ -11,6 +11,7 @@ import SwiftData
 struct ContentView: View {
     @AppStorage("hasCompletedTutorial") private var hasCompletedTutorial = false
     @AppStorage("didNormalizeStatementNames") private var didNormalizeStatementNames = false
+    @AppStorage("didCleanupSummaryRows") private var didCleanupSummaryRows = false
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var modelContext
     @Query private var userCards: [UserCard]
@@ -30,6 +31,20 @@ struct ContentView: View {
         }
         try? modelContext.save()
         didNormalizeStatementNames = true
+    }
+
+    /// One-time cleanup: delete statement rows that were logged as transactions
+    /// before summary lines like "New Balance" were filtered out at parse time.
+    private func cleanupSummaryTransactionRows() {
+        guard !didCleanupSummaryRows else { return }
+        let rows = (try? modelContext.fetch(FetchDescriptor<StatementRow>())) ?? []
+        var removed = 0
+        for row in rows where StatementParser.isSummaryLine(row.transactionDescription) {
+            modelContext.delete(row)
+            removed += 1
+        }
+        if removed > 0 { try? modelContext.save() }
+        didCleanupSummaryRows = true
     }
 
     @State private var widgetSyncTask: Task<Void, Never>? = nil
@@ -125,6 +140,7 @@ struct ContentView: View {
         }
         .onAppear {
             normalizeExistingStatementNames()
+            cleanupSummaryTransactionRows()
             WidgetDataWriter.sync(userCards: userCards)
             NotificationScheduler.requestPermission()
             checkSharedInbox()

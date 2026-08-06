@@ -19,6 +19,40 @@ struct DetectedSubscription: Identifiable {
     let months: Int             // distinct months
     let lastCharged: Date
     let category: String
+    let normalizedMerchantKey: String   // stable normalized key used for grouping
+
+    /// Stable identity for ignoring: normalized merchant key + amount in cents.
+    var ignoreKey: String {
+        "\(normalizedMerchantKey)|\(Int((amount * 100).rounded()))"
+    }
+}
+
+// MARK: - Ignored Subscriptions Store
+
+/// Persists user-ignored subscription keys so they are never flagged again.
+enum IgnoredSubscriptionsStore {
+    private static let key = "ignoredSubscriptions"
+
+    private static var defaults: UserDefaults {
+        UserDefaults(suiteName: "group.benefittracker.shared") ?? .standard
+    }
+
+    static func ignoredKeys() -> Set<String> {
+        let array = defaults.stringArray(forKey: key) ?? []
+        return Set(array)
+    }
+
+    static func ignore(_ ignoreKey: String) {
+        var set = ignoredKeys()
+        set.insert(ignoreKey)
+        defaults.set(Array(set), forKey: key)
+    }
+
+    static func unignore(_ ignoreKey: String) {
+        var set = ignoredKeys()
+        set.remove(ignoreKey)
+        defaults.set(Array(set), forKey: key)
+    }
 }
 
 // MARK: - Detection Engine
@@ -61,8 +95,20 @@ private enum SubscriptionDetector {
         return String(format: "%04d-%02d", comps.year ?? 0, comps.month ?? 0)
     }
 
-    /// Detect subscriptions across all cards.
+    /// Detect subscriptions across all cards, excluding any the user has ignored.
     static func detect(from cards: [UserCard]) -> [DetectedSubscription] {
+        let ignored = IgnoredSubscriptionsStore.ignoredKeys()
+        return detectAll(from: cards).filter { !ignored.contains($0.ignoreKey) }
+    }
+
+    /// Detect subscriptions the user has ignored (the ignored subset only).
+    static func detectIgnored(from cards: [UserCard]) -> [DetectedSubscription] {
+        let ignored = IgnoredSubscriptionsStore.ignoredKeys()
+        return detectAll(from: cards).filter { ignored.contains($0.ignoreKey) }
+    }
+
+    /// Detect all subscriptions across all cards, including ignored ones.
+    static func detectAll(from cards: [UserCard]) -> [DetectedSubscription] {
         var calendar = Calendar.current
         calendar.timeZone = .current
 
@@ -116,7 +162,8 @@ private enum SubscriptionDetector {
                     occurrences: members.count,
                     months: distinctMonths.count,
                     lastCharged: members.map { $0.date }.max() ?? members[0].date,
-                    category: mostCommon(members.map { $0.category }) ?? members[0].category
+                    category: mostCommon(members.map { $0.category }) ?? members[0].category,
+                    normalizedMerchantKey: members[0].normalizedKey
                 )
             )
         }
@@ -138,8 +185,17 @@ private enum SubscriptionDetector {
 struct SubscriptionsView: View {
     @Query private var userCards: [UserCard]
 
+    @State private var refreshToken = UUID()
+    @State private var showingIgnored = false
+
     private var subscriptions: [DetectedSubscription] {
-        SubscriptionDetector.detect(from: userCards)
+        _ = refreshToken
+        return SubscriptionDetector.detect(from: userCards)
+    }
+
+    private var ignoredSubscriptions: [DetectedSubscription] {
+        _ = refreshToken
+        return SubscriptionDetector.detectIgnored(from: userCards)
     }
 
     private var totalMonthly: Double {
@@ -171,6 +227,14 @@ struct SubscriptionsView: View {
                         Section {
                             ForEach(subscriptions) { sub in
                                 subscriptionRow(sub)
+                                    .swipeActions(edge: .trailing) {
+                                        Button(role: .destructive) {
+                                            IgnoredSubscriptionsStore.ignore(sub.ignoreKey)
+                                            refreshToken = UUID()
+                                        } label: {
+                                            Label("Ignore", systemImage: "eye.slash")
+                                        }
+                                    }
                             }
                         } footer: {
                             Text("Detected from repeated charges in your statements. Review and cancel any you no longer use.")
@@ -180,6 +244,57 @@ struct SubscriptionsView: View {
                 }
             }
             .navigationTitle("Subscriptions")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showingIgnored = true
+                    } label: {
+                        Image(systemName: "eye.slash.circle")
+                            .foregroundStyle(Color.appCoral)
+                    }
+                    .accessibilityLabel("View ignored subscriptions")
+                }
+            }
+            .sheet(isPresented: $showingIgnored) {
+                ignoredSheet
+            }
+        }
+    }
+
+    // MARK: Ignored Sheet
+
+    private var ignoredSheet: some View {
+        NavigationStack {
+            Group {
+                if ignoredSubscriptions.isEmpty {
+                    ContentUnavailableView(
+                        "Nothing Ignored",
+                        systemImage: "eye",
+                        description: Text("Subscriptions you ignore will appear here so you can restore them.")
+                    )
+                } else {
+                    List {
+                        ForEach(ignoredSubscriptions) { sub in
+                            subscriptionRow(sub)
+                                .swipeActions(edge: .trailing) {
+                                    Button {
+                                        IgnoredSubscriptionsStore.unignore(sub.ignoreKey)
+                                        refreshToken = UUID()
+                                    } label: {
+                                        Label("Restore", systemImage: "arrow.uturn.backward")
+                                    }
+                                    .tint(Color.appLeaf)
+                                }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Ignored")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { showingIgnored = false }
+                }
+            }
         }
     }
 
@@ -234,13 +349,13 @@ struct SubscriptionsView: View {
                 .font(.caption)
                 .foregroundStyle(Color.appCoral)
 
-            HStack(spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
                 categoryChip(sub.category)
 
-                Text("Charged \(sub.occurrences) times across \(sub.months) months · last: \(sub.lastCharged, format: .relative(presentation: .named))")
+                Text("\(sub.occurrences) charges · \(sub.months) months · last \(sub.lastCharged, format: .dateTime.month().day().year())")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.vertical, 4)

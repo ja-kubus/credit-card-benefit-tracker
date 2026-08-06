@@ -914,7 +914,7 @@ class StatementParser {
     /// Returns true if the given text is a statement summary field (e.g. "New Balance",
     /// "Previous Balance", "Minimum Payment Due") rather than a real purchased transaction.
     /// Used to prevent summary lines from being picked up as merchants.
-    private static func isSummaryLine(_ text: String) -> Bool {
+    static func isSummaryLine(_ text: String) -> Bool {
         let lower = text.lowercased().trimmingCharacters(in: .whitespaces)
         let summaryPhrases = [
             "new balance",
