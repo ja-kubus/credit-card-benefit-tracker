@@ -569,10 +569,9 @@ struct CardsView: View {
         }
         .sheet(item: $overviewDetailCard) { card in
             OverviewCardDetailSheet(
-                cardName: card.name,
+                card: card,
                 period: overviewPeriod,
-                periodLabel: periodLabel(overviewPeriod),
-                items: periodBenefits(for: card, period: overviewPeriod)
+                periodLabel: periodLabel(overviewPeriod)
             )
         }
     }
@@ -1021,13 +1020,32 @@ struct SpendingCategoryDetailSheet: View {
 }
 
 /// Popup listing the benefits that make up a card's value for one period,
-/// with each benefit's dollar amount and used/unused status.
+/// with each benefit's dollar amount and used/unused status. Benefits can be
+/// marked used here; when marking, the user chooses whether it's new usage
+/// (adds value) or a retroactive fix already counted in prior history (no
+/// double-count — the amount moves out of prior history into benefits used).
 struct OverviewCardDetailSheet: View {
-    let cardName: String
+    let card: UserCard
     let period: BenefitPeriod
     let periodLabel: String
-    let items: [(benefit: CatalogBenefit, completion: BenefitCompletion?)]
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+
+    // Bump to force a recompute after mutating a completion.
+    @State private var refreshToken = UUID()
+    // The benefit awaiting the "new vs retroactive" choice.
+    @State private var pendingBenefit: CatalogBenefit? = nil
+
+    private var items: [(benefit: CatalogBenefit, completion: BenefitCompletion?)] {
+        _ = refreshToken
+        guard let catalogCard = CreditCardCatalog.all.first(where: { $0.id == card.catalogCardID }) else { return [] }
+        return catalogCard.benefits
+            .filter { $0.period == period && $0.dollarAmount > 0 }
+            .map { benefit in
+                let comp = card.completions.first { $0.benefitName == benefit.name && $0.benefitPeriod == period }
+                return (benefit, comp)
+            }
+    }
 
     private var available: Double { items.reduce(0.0) { $0 + $1.benefit.dollarAmount } }
     private var used: Double {
@@ -1041,16 +1059,56 @@ struct OverviewCardDetailSheet: View {
 
     private func status(for pair: (benefit: CatalogBenefit, completion: BenefitCompletion?)) -> (text: String, color: Color, icon: String) {
         guard let comp = pair.completion else {
-            return ("Not used", .secondary, "circle")
+            return ("Not used — tap to mark", .secondary, "circle")
         }
         if comp.isCompleted {
-            return ("Used", .appLeaf, "checkmark.circle.fill")
+            return ("Used — tap to undo", .appLeaf, "checkmark.circle.fill")
         }
         let partial = Double(comp.partialUsage.trimmingCharacters(in: .whitespaces)) ?? 0
         if partial > 0 {
-            return ("$\(Int(partial)) of $\(Int(pair.benefit.dollarAmount)) used", .appGiraffe, "circle.lefthalf.filled")
+            return ("$\(Int(partial)) of $\(Int(pair.benefit.dollarAmount)) used — tap to mark full", .appGiraffe, "circle.lefthalf.filled")
         }
-        return ("Not used", .secondary, "circle")
+        return ("Not used — tap to mark", .secondary, "circle")
+    }
+
+    /// Ensure a completion record exists for a catalog benefit, creating one if needed.
+    private func completion(for benefit: CatalogBenefit) -> BenefitCompletion {
+        if let existing = card.completions.first(where: { $0.benefitName == benefit.name && $0.benefitPeriod == period }) {
+            return existing
+        }
+        let created = BenefitCompletion(cardID: card.catalogCardID, benefit: benefit)
+        modelContext.insert(created)
+        card.completions.append(created)
+        return created
+    }
+
+    private func handleTap(_ pair: (benefit: CatalogBenefit, completion: BenefitCompletion?)) {
+        if let comp = pair.completion, comp.isCompleted {
+            // Undo
+            comp.isCompleted = false
+            comp.partialUsage = ""
+            save()
+        } else {
+            // Ask new-usage vs retroactive before marking
+            pendingBenefit = pair.benefit
+        }
+    }
+
+    private func markUsed(_ benefit: CatalogBenefit, retroactive: Bool) {
+        let comp = completion(for: benefit)
+        comp.isCompleted = true
+        comp.partialUsage = ""
+        if retroactive {
+            // Value was already logged in prior history — move it out so the
+            // fee-recoup total doesn't count it twice.
+            card.manualClaimedValue = max(0, card.manualClaimedValue - benefit.dollarAmount)
+        }
+        save()
+    }
+
+    private func save() {
+        try? modelContext.save()
+        refreshToken = UUID()
     }
 
     var body: some View {
@@ -1078,34 +1136,63 @@ struct OverviewCardDetailSheet: View {
                     } else {
                         ForEach(items, id: \.benefit.id) { pair in
                             let s = status(for: pair)
-                            HStack(alignment: .firstTextBaseline) {
-                                Image(systemName: s.icon)
-                                    .foregroundStyle(s.color)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(pair.benefit.name)
-                                        .font(.subheadline)
-                                    Text(s.text)
-                                        .font(.caption)
+                            Button {
+                                handleTap(pair)
+                            } label: {
+                                HStack(alignment: .firstTextBaseline) {
+                                    Image(systemName: s.icon)
                                         .foregroundStyle(s.color)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(pair.benefit.name)
+                                            .font(.subheadline)
+                                            .foregroundStyle(.primary)
+                                        Text(s.text)
+                                            .font(.caption)
+                                            .foregroundStyle(s.color)
+                                    }
+                                    Spacer()
+                                    Text(pair.benefit.dollarAmount, format: .currency(code: "USD").precision(.fractionLength(0)))
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.primary)
                                 }
-                                Spacer()
-                                Text(pair.benefit.dollarAmount, format: .currency(code: "USD").precision(.fractionLength(0)))
-                                    .font(.subheadline.weight(.semibold))
+                                .padding(.vertical, 2)
+                                .contentShape(Rectangle())
                             }
-                            .padding(.vertical, 2)
+                            .buttonStyle(.plain)
                         }
                     }
                 } header: {
                     Text("Benefits")
+                } footer: {
+                    Text("Tap a benefit to mark it used. You'll be asked whether it's new usage or a value you already entered as prior history.")
                 }
             }
-            .navigationTitle(cardName)
+            .navigationTitle(card.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                         .foregroundStyle(Color.appCoral)
                 }
+            }
+            .confirmationDialog(
+                pendingBenefit.map { "Mark \"\($0.name)\" as used?" } ?? "Mark as used?",
+                isPresented: Binding(get: { pendingBenefit != nil }, set: { if !$0 { pendingBenefit = nil } }),
+                titleVisibility: .visible
+            ) {
+                if let benefit = pendingBenefit {
+                    Button("New usage (adds $\(Int(benefit.dollarAmount)) value)") {
+                        markUsed(benefit, retroactive: false)
+                        pendingBenefit = nil
+                    }
+                    Button("Already in prior history (retroactive fix)") {
+                        markUsed(benefit, retroactive: true)
+                        pendingBenefit = nil
+                    }
+                    Button("Cancel", role: .cancel) { pendingBenefit = nil }
+                }
+            } message: {
+                Text("Choose \"New usage\" if you just used this benefit. Choose \"Already in prior history\" if you previously entered this value as prior history — it won't be counted twice.")
             }
         }
     }
