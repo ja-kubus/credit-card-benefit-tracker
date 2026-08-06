@@ -56,6 +56,12 @@ struct PortfolioOverviewView: View {
     @State private var overviewDetailCard: UserCard? = nil
     @State private var includeBenefitsUsage = true
     @State private var includePointsUsage = true
+    @State private var hideNoFeeCards = false
+
+    /// Cards shown in the Overview; no-fee cards are where there's no fee to recoup.
+    private var displayedCards: [UserCard] {
+        hideNoFeeCards ? userCards.filter { $0.annualFee > 0 } : userCards
+    }
 
     var body: some View {
         ScrollView {
@@ -116,9 +122,25 @@ struct PortfolioOverviewView: View {
                 }
                 .padding(.horizontal)
 
+                // MARK: Hide no-fee cards toggle
+                HStack {
+                    recoupToggle(title: "Hide no-fee cards", isOn: hideNoFeeCards) {
+                        hideNoFeeCards.toggle()
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal)
+
                 // MARK: Per-card rows
                 VStack(spacing: 12) {
-                    ForEach(userCards) { card in
+                    if displayedCards.isEmpty {
+                        Text(hideNoFeeCards ? "No annual-fee cards in your wallet." : "No cards yet.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                    }
+                    ForEach(displayedCards) { card in
                         let available = periodAvailable(for: card, period: overviewPeriod)
                         let claimedPeriod = periodClaimed(for: card, period: overviewPeriod)
                         // Fee recoup uses annual value captured (benefits used + points + prior).
