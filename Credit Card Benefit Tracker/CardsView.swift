@@ -40,6 +40,9 @@ struct CardsView: View {
     @State private var spendingCardFilter: PersistentIdentifier? = nil
     @State private var includeBenefitsUsage = true
     @State private var includePointsUsage = true
+    // Overview: which benefit period the per-card breakdown reflects
+    @State private var overviewPeriod: BenefitPeriod = .monthly
+    @State private var overviewDetailCard: UserCard? = nil
     @State private var hideNoFeeCards = false
     @State private var selectedSpendingCategory: String? = nil
 
@@ -449,6 +452,23 @@ struct CardsView: View {
                 .cornerRadius(16)
                 .padding(.horizontal)
 
+                // MARK: Benefit-period selector
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Benefit period")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Picker("Benefit period", selection: $overviewPeriod) {
+                        ForEach(BenefitPeriod.allCases, id: \.self) { period in
+                            Text(period.rawValue).tag(period)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    Text("Tap a card to see the benefits that make up its \(periodLabel(overviewPeriod)) value.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal)
+
                 // MARK: Recoup contributors toggle row
                 HStack(spacing: 16) {
                     recoupToggle(title: "Benefits Usage", isOn: includeBenefitsUsage) {
@@ -464,66 +484,81 @@ struct CardsView: View {
                 // MARK: Per-card rows
                 VStack(spacing: 12) {
                     ForEach(displayedCards) { card in
-                        let cycleAvailable = currentCycleValue(for: card)
-                        let claimed = claimedThisCycle(for: card)
+                        let available = periodAvailable(for: card, period: overviewPeriod)
+                        let claimedPeriod = periodClaimed(for: card, period: overviewPeriod)
+                        // Fee recoup uses annual value captured (benefits used + points + prior)
                         let pointsValue = PointsValuer.dollarValueLast12Months(for: card)
-                        let benefitsPart = includeBenefitsUsage ? claimed : 0
+                        let benefitsPart = includeBenefitsUsage ? claimedThisCycle(for: card) : 0
                         let pointsPart = includePointsUsage ? pointsValue : 0
                         let contribution = benefitsPart + pointsPart + card.manualClaimedValue
 
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(card.name)
-                                        .font(.subheadline.weight(.semibold))
-                                    Text(card.issuer)
+                        Button {
+                            overviewDetailCard = card
+                        } label: {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(card.name)
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(.primary)
+                                        Text(card.issuer)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
+
+                                // Selected-period benefit usage
+                                if available > 0 {
+                                    let periodDone = claimedPeriod >= available
+                                    HStack {
+                                        Text("\(overviewPeriod.rawValue) benefits")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(Color.appGiraffe)
+                                        Spacer()
+                                        Text("$\(Int(claimedPeriod)) / $\(Int(available)) used \(periodLabel(overviewPeriod))")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    ProgressView(value: min(claimedPeriod, available), total: max(available, 0.01))
+                                        .tint(periodDone ? Color.appLeaf : Color.appCoral)
+                                } else {
+                                    Text("No \(overviewPeriod.rawValue.lowercased()) benefits on this card")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
-                                Spacer()
-                                VStack(alignment: .trailing, spacing: 2) {
-                                    Text("$\(Int(card.annualFee)) fee")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(.red)
-                                    Text("$\(Int(cycleAvailable)) this cycle")
+
+                                Divider()
+
+                                // Annual fee recoup — clearly separate & annual
+                                HStack {
+                                    Text(card.annualFee == 0 ? "No annual fee" : "Annual fee $\(Int(card.annualFee))")
                                         .font(.caption)
-                                        .foregroundStyle(Color.appGiraffe)
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                    if card.annualFee == 0 {
+                                        Text("—")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.secondary)
+                                    } else if contribution >= card.annualFee {
+                                        Label("Fee recouped", systemImage: "checkmark.circle.fill")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(Color.appLeaf)
+                                    } else {
+                                        Text("$\(Int(card.annualFee - contribution)) to recoup")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.orange)
+                                    }
                                 }
                             }
-
-                            ProgressView(value: min(claimed, cycleAvailable), total: max(cycleAvailable, 0.01))
-                                .tint(Color.appLeaf)
-
-                            HStack {
-                                Text("This cycle: $\(Int(claimed)) / $\(Int(cycleAvailable))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                                if contribution >= card.annualFee {
-                                    Text("Fee recouped")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(Color.appLeaf)
-                                } else {
-                                    Text("$\(Int(card.annualFee - contribution)) to recoup fee")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(.orange)
-                                }
-                            }
-
-                            let breakdown = recoupBreakdown(
-                                benefits: includeBenefitsUsage ? claimed : nil,
-                                points: includePointsUsage ? pointsValue : nil,
-                                prior: card.manualClaimedValue
-                            )
-                            if !breakdown.isEmpty {
-                                Text(breakdown)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
+                            .padding()
+                            .background(Color(.secondarySystemGroupedBackground))
+                            .cornerRadius(12)
                         }
-                        .padding()
-                        .background(Color(.secondarySystemGroupedBackground))
-                        .cornerRadius(12)
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal)
@@ -531,6 +566,14 @@ struct CardsView: View {
                 Spacer(minLength: 32)
             }
             .padding(.top, 12)
+        }
+        .sheet(item: $overviewDetailCard) { card in
+            OverviewCardDetailSheet(
+                cardName: card.name,
+                period: overviewPeriod,
+                periodLabel: periodLabel(overviewPeriod),
+                items: periodBenefits(for: card, period: overviewPeriod)
+            )
         }
     }
 
@@ -811,6 +854,44 @@ struct CardsView: View {
         }
     }
 
+    // MARK: - Per-period benefit helpers (Overview)
+
+    /// Catalog benefits for a card in a specific period, paired with their completion (if any).
+    private func periodBenefits(for card: UserCard, period: BenefitPeriod) -> [(benefit: CatalogBenefit, completion: BenefitCompletion?)] {
+        guard let catalogCard = CreditCardCatalog.all.first(where: { $0.id == card.catalogCardID }) else { return [] }
+        return catalogCard.benefits
+            .filter { $0.period == period && $0.dollarAmount > 0 }
+            .map { benefit in
+                let comp = card.completions.first { $0.benefitName == benefit.name && $0.benefitPeriod == period }
+                return (benefit, comp)
+            }
+    }
+
+    /// Total dollar value available in one period for a card.
+    private func periodAvailable(for card: UserCard, period: BenefitPeriod) -> Double {
+        periodBenefits(for: card, period: period).reduce(0.0) { $0 + $1.benefit.dollarAmount }
+    }
+
+    /// Dollar value already used (completed or partial) in one period for a card.
+    private func periodClaimed(for card: UserCard, period: BenefitPeriod) -> Double {
+        periodBenefits(for: card, period: period).reduce(0.0) { total, pair in
+            guard let comp = pair.completion else { return total }
+            if comp.isCompleted { return total + pair.benefit.dollarAmount }
+            let partial = comp.partialUsage.trimmingCharacters(in: .whitespaces)
+            return total + (Double(partial) ?? 0)
+        }
+    }
+
+    /// How to phrase a period's cadence in the UI.
+    private func periodLabel(_ period: BenefitPeriod) -> String {
+        switch period {
+        case .monthly:      return "this month"
+        case .quarterly:    return "this quarter"
+        case .semiAnnually: return "this half-year"
+        case .annually:     return "this year"
+        }
+    }
+
     /// Compact SF-Symbol checkbox used to toggle recoup contributors.
     private func recoupToggle(title: String, isOn: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -928,6 +1009,97 @@ struct SpendingCategoryDetailSheet: View {
                 }
             }
             .navigationTitle(category)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .foregroundStyle(Color.appCoral)
+                }
+            }
+        }
+    }
+}
+
+/// Popup listing the benefits that make up a card's value for one period,
+/// with each benefit's dollar amount and used/unused status.
+struct OverviewCardDetailSheet: View {
+    let cardName: String
+    let period: BenefitPeriod
+    let periodLabel: String
+    let items: [(benefit: CatalogBenefit, completion: BenefitCompletion?)]
+    @Environment(\.dismiss) private var dismiss
+
+    private var available: Double { items.reduce(0.0) { $0 + $1.benefit.dollarAmount } }
+    private var used: Double {
+        items.reduce(0.0) { total, pair in
+            guard let comp = pair.completion else { return total }
+            if comp.isCompleted { return total + pair.benefit.dollarAmount }
+            let partial = comp.partialUsage.trimmingCharacters(in: .whitespaces)
+            return total + (Double(partial) ?? 0)
+        }
+    }
+
+    private func status(for pair: (benefit: CatalogBenefit, completion: BenefitCompletion?)) -> (text: String, color: Color, icon: String) {
+        guard let comp = pair.completion else {
+            return ("Not used", .secondary, "circle")
+        }
+        if comp.isCompleted {
+            return ("Used", .appLeaf, "checkmark.circle.fill")
+        }
+        let partial = Double(comp.partialUsage.trimmingCharacters(in: .whitespaces)) ?? 0
+        if partial > 0 {
+            return ("$\(Int(partial)) of $\(Int(pair.benefit.dollarAmount)) used", .appGiraffe, "circle.lefthalf.filled")
+        }
+        return ("Not used", .secondary, "circle")
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    HStack {
+                        Text("\(period.rawValue) value")
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                        Text("$\(Int(used)) / $\(Int(available))")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(used >= available && available > 0 ? Color.appLeaf : Color.primary)
+                    }
+                    Text("Used \(periodLabel)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section {
+                    if items.isEmpty {
+                        Text("No \(period.rawValue.lowercased()) benefits on this card.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(items, id: \.benefit.id) { pair in
+                            let s = status(for: pair)
+                            HStack(alignment: .firstTextBaseline) {
+                                Image(systemName: s.icon)
+                                    .foregroundStyle(s.color)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(pair.benefit.name)
+                                        .font(.subheadline)
+                                    Text(s.text)
+                                        .font(.caption)
+                                        .foregroundStyle(s.color)
+                                }
+                                Spacer()
+                                Text(pair.benefit.dollarAmount, format: .currency(code: "USD").precision(.fractionLength(0)))
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+                } header: {
+                    Text("Benefits")
+                }
+            }
+            .navigationTitle(cardName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
