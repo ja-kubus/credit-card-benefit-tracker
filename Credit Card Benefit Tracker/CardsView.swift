@@ -486,8 +486,10 @@ struct CardsView: View {
                     ForEach(displayedCards) { card in
                         let available = periodAvailable(for: card, period: overviewPeriod)
                         let claimedPeriod = periodClaimed(for: card, period: overviewPeriod)
-                        // Fee recoup uses annual value captured (benefits used + points + prior)
-                        let pointsValue = PointsValuer.dollarValueLast12Months(for: card)
+                        // Fee recoup uses annual value captured (benefits used + points + prior).
+                        // Points are measured over the card's real fee year (from the
+                        // fee anniversary), so a mid-year-opened card is judged fairly.
+                        let pointsValue = PointsValuer.dollarValue(for: card, since: card.currentFeeYearStart)
                         let benefitsPart = includeBenefitsUsage ? claimedThisCycle(for: card) : 0
                         let pointsPart = includePointsUsage ? pointsValue : 0
                         let contribution = benefitsPart + pointsPart + card.manualClaimedValue
@@ -504,6 +506,11 @@ struct CardsView: View {
                                         Text(card.issuer)
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
+                                        if let feeDate = card.feeAnniversaryDate {
+                                            Text("\(card.annualFee > 0 ? "Fee date" : "Opened"): \(feeDate.formatted(.dateTime.month().day().year()))")
+                                                .font(.caption2)
+                                                .foregroundStyle(.tertiary)
+                                        }
                                     }
                                     Spacer()
                                     Image(systemName: "chevron.right")

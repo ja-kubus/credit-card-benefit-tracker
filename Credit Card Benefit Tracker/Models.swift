@@ -139,9 +139,37 @@ final class UserCard {
     var dateAdded: Date
     var notificationsEnabled: Bool = true
     var manualClaimedValue: Double = 0
+    // The date the annual fee is first charged (for no-fee cards: the card-open
+    // date). The fee "year" for recoup analysis runs from the most recent
+    // anniversary of this date, so cards opened mid-year aren't measured against
+    // a misleading Jan 1 start.
+    var feeAnniversaryDate: Date? = nil
 
     @Relationship(deleteRule: .cascade) var completions: [BenefitCompletion] = []
     @Relationship(deleteRule: .cascade) var statements: [Statement] = []
+
+    /// Start of the current fee year: the most recent anniversary of
+    /// `feeAnniversaryDate` on or before today. Falls back to a rolling
+    /// 12-month window when the date hasn't been set.
+    var currentFeeYearStart: Date {
+        let cal = Calendar.current
+        let now = Date()
+        guard let anchor = feeAnniversaryDate else {
+            return cal.date(byAdding: .year, value: -1, to: now) ?? now
+        }
+        let comps = cal.dateComponents([.month, .day], from: anchor)
+        // Anniversary in the current calendar year.
+        var thisYear = DateComponents()
+        thisYear.year = cal.component(.year, from: now)
+        thisYear.month = comps.month
+        thisYear.day = comps.day
+        if let candidate = cal.date(from: thisYear) {
+            if candidate <= now { return candidate }
+            // Anniversary hasn't happened yet this year → last year's.
+            return cal.date(byAdding: .year, value: -1, to: candidate) ?? candidate
+        }
+        return cal.date(byAdding: .year, value: -1, to: now) ?? now
+    }
 
     init(from catalog: CatalogCard) {
         self.catalogCardID = catalog.id

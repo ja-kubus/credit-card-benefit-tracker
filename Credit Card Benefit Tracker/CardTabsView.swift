@@ -143,6 +143,49 @@ struct EarningsTabContent: View {
     }
 
     @State private var showManualValueSheet = false
+    @State private var showFeeDateSheet = false
+
+    /// Label depends on whether the card has an annual fee.
+    private var feeDateTitle: String {
+        card.annualFee > 0 ? "Annual fee date" : "Card opened date"
+    }
+
+    private var feeDateRow: some View {
+        Button {
+            showFeeDateSheet = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "calendar")
+                    .foregroundStyle(Color.appCoral)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(feeDateTitle)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary)
+                    if let date = card.feeAnniversaryDate {
+                        Text(date, format: .dateTime.month().day().year())
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(card.annualFee > 0
+                             ? "Set so recoup is measured over your real fee year"
+                             : "Set the date you opened this card")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                Image(systemName: card.feeAnniversaryDate == nil ? "plus.circle" : "pencil.circle")
+                    .foregroundStyle(Color.appCoral)
+            }
+            .padding(14)
+            .background(Color(.secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showFeeDateSheet) {
+            FeeDateSheet(card: card, title: feeDateTitle)
+        }
+    }
 
     // Dollar value of benefits marked complete or with partial usage
     private var benefitsClaimedValue: Double {
@@ -353,7 +396,11 @@ struct EarningsTabContent: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
-                    
+
+                    // ── Annual fee / card-open date ──
+                    feeDateRow
+                        .padding(.horizontal, 20)
+
                     // ── Fee vs Value ──
                     if totalAnnualValue > 0 {
                         feeVsValueRow
@@ -558,6 +605,60 @@ struct ManualValueSheet: View {
             }
         }
         .presentationDetents([.medium])
+    }
+}
+
+// MARK: - Fee / Card-Open Date Sheet
+
+struct FeeDateSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @Bindable var card: UserCard
+    let title: String
+    @State private var date: Date = Date()
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    DatePicker(title, selection: $date, in: ...Date(), displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                } footer: {
+                    Text(card.annualFee > 0
+                         ? "The date your annual fee is charged each year. Fee-recoup analysis is measured over the 12 months from this date — not the calendar year — so a card opened mid-year is judged fairly."
+                         : "The date you opened this card. Used to anchor the yearly window in the spending analyzer.")
+                }
+
+                if card.feeAnniversaryDate != nil {
+                    Section {
+                        Button(role: .destructive) {
+                            card.feeAnniversaryDate = nil
+                            try? modelContext.save()
+                            dismiss()
+                        } label: {
+                            Text("Clear date")
+                        }
+                    }
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        card.feeAnniversaryDate = date
+                        try? modelContext.save()
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear {
+                if let existing = card.feeAnniversaryDate { date = existing }
+            }
+        }
     }
 }
 
