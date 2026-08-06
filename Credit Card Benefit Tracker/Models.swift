@@ -144,8 +144,15 @@ final class UserCard {
     // anniversary of this date, so cards opened mid-year aren't measured against
     // a misleading Jan 1 start.
     var feeAnniversaryDate: Date? = nil
+    // Running total of benefit value used within the current fee year. Benefits
+    // reset on their calendar periods; when one resets after being used, its
+    // value is banked here so the full fee-year usage is captured (not just the
+    // current in-progress period). Reset to 0 at each fee anniversary.
+    var feeYearBenefitUsage: Double = 0
+    // The fee-year start this accumulator currently belongs to (for rollover).
+    var feeYearUsageAnchor: Date? = nil
 
-    @Relationship(deleteRule: .cascade) var completions: [BenefitCompletion] = []
+    @Relationship(deleteRule: .cascade, inverse: \BenefitCompletion.card) var completions: [BenefitCompletion] = []
     @Relationship(deleteRule: .cascade) var statements: [Statement] = []
 
     /// Start of the current fee year: the most recent anniversary of
@@ -169,6 +176,26 @@ final class UserCard {
             return cal.date(byAdding: .year, value: -1, to: candidate) ?? candidate
         }
         return cal.date(byAdding: .year, value: -1, to: now) ?? now
+    }
+
+    /// Zero the fee-year usage accumulator when a new fee year begins.
+    func rollFeeYearIfNeeded() {
+        let start = currentFeeYearStart
+        if let anchor = feeYearUsageAnchor {
+            if !Calendar.current.isDate(anchor, inSameDayAs: start) {
+                feeYearBenefitUsage = 0
+                feeYearUsageAnchor = start
+            }
+        } else {
+            feeYearUsageAnchor = start
+        }
+    }
+
+    /// Bank benefit value used this fee year (called when a used benefit resets).
+    func accrueBenefitUsage(_ amount: Double) {
+        guard amount > 0 else { return }
+        rollFeeYearIfNeeded()
+        feeYearBenefitUsage += amount
     }
 
     init(from catalog: CatalogCard) {
@@ -200,6 +227,9 @@ final class BenefitCompletion {
     // (via the Benefits Found review). Empty for manual check-offs. Used to
     // undo the check-off if that statement is later deleted.
     var autoCheckSourceHash: String = ""
+    // Inverse of UserCard.completions, so a benefit can bank its used value onto
+    // its card's fee-year accumulator when it resets.
+    var card: UserCard?
 
     init(cardID: String, benefit: CatalogBenefit) {
         self.cardID             = cardID
@@ -254,11 +284,18 @@ final class BenefitCompletion {
         // Safety cap prevents infinite loops on corrupt reset dates.
         while Date() >= resetDate && iterations < 60 {
             iterations += 1
-            // If benefit wasn't used and not ignored, increment missed count.
-            // After the first iteration usage has been cleared, so each further
-            // skipped period correctly counts as missed too.
-            if !hasAnyUsage && !isIgnored {
-                missedCount += 1
+            if !isIgnored {
+                if hasAnyUsage {
+                    // Bank the value used this period onto the card's fee-year total
+                    // before clearing it, so full fee-year usage is captured.
+                    let used = isCompleted
+                        ? dollarAmount
+                        : (Double(partialUsage.trimmingCharacters(in: .whitespaces)) ?? 0)
+                    card?.accrueBenefitUsage(used)
+                } else {
+                    // Unused and not ignored → a missed benefit.
+                    missedCount += 1
+                }
             }
             isCompleted = false
             partialUsage = ""

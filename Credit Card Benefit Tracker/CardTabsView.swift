@@ -264,7 +264,9 @@ struct EarningsTabContent: View {
     }
 
     private var claimedValue: Double {
-        benefitsClaimedValue + pointsDollarValue + card.manualClaimedValue
+        // benefitsClaimedValue is the current in-progress period; add the value
+        // banked from periods that already reset this fee year.
+        card.feeYearBenefitUsage + benefitsClaimedValue + pointsDollarValue + card.manualClaimedValue
     }
 
     private var feeVsValueRow: some View {

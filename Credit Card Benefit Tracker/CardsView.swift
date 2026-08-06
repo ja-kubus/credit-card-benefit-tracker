@@ -490,7 +490,10 @@ struct CardsView: View {
                         // Points are measured over the card's real fee year (from the
                         // fee anniversary), so a mid-year-opened card is judged fairly.
                         let pointsValue = PointsValuer.dollarValue(for: card, since: card.currentFeeYearStart)
-                        let benefitsPart = includeBenefitsUsage ? claimedThisCycle(for: card) : 0
+                        // Full fee-year benefit usage = value banked from periods that
+                        // already reset this fee year + value used in the current period.
+                        let feeYearBenefits = card.feeYearBenefitUsage + claimedThisCycle(for: card)
+                        let benefitsPart = includeBenefitsUsage ? feeYearBenefits : 0
                         let pointsPart = includePointsUsage ? pointsValue : 0
                         let contribution = benefitsPart + pointsPart + card.manualClaimedValue
 

@@ -47,6 +47,13 @@ struct ContentView: View {
         didCleanupSummaryRows = true
     }
 
+    /// Roll each card's fee-year usage accumulator over when a new fee year has
+    /// begun, so a stale prior-year total doesn't linger.
+    private func rollFeeYears() {
+        for card in userCards { card.rollFeeYearIfNeeded() }
+        try? modelContext.save()
+    }
+
     @State private var widgetSyncTask: Task<Void, Never>? = nil
     @State private var notifRescheduleTask: Task<Void, Never>? = nil
 
@@ -142,6 +149,7 @@ struct ContentView: View {
         .onAppear {
             normalizeExistingStatementNames()
             cleanupSummaryTransactionRows()
+            rollFeeYears()
             WidgetDataWriter.sync(userCards: userCards)
             NotificationScheduler.requestPermission()
             checkSharedInbox()
