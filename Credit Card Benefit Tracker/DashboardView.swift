@@ -160,7 +160,7 @@ struct PortfolioOverviewView: View {
                                 if available > 0 {
                                     let periodDone = claimedPeriod >= available
                                     HStack {
-                                        Text("\(overviewPeriod.rawValue) benefits")
+                                        Text("\(periodAdjective(overviewPeriod)) benefits")
                                             .font(.caption.weight(.semibold))
                                             .foregroundStyle(Color.appGiraffe)
                                         Spacer()
@@ -171,7 +171,7 @@ struct PortfolioOverviewView: View {
                                     ProgressView(value: min(claimedPeriod, available), total: max(available, 0.01))
                                         .tint(periodDone ? Color.appLeaf : Color.appCoral)
                                 } else {
-                                    Text("No \(overviewPeriod.rawValue.lowercased()) benefits on this card")
+                                    Text("No \(periodAdjective(overviewPeriod).lowercased()) benefits on this card")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -196,6 +196,22 @@ struct PortfolioOverviewView: View {
                                         Text("$\(Int(card.annualFee - contribution)) to recoup")
                                             .font(.caption.weight(.semibold))
                                             .foregroundStyle(.orange)
+                                    }
+                                }
+
+                                // Contributor breakdown so the recoup math is explicit —
+                                // no mental "fee − benefits = points" needed.
+                                if card.annualFee > 0 {
+                                    VStack(spacing: 3) {
+                                        if includeBenefitsUsage {
+                                            contributorRow(label: "Benefits used this year", value: benefitsPart, icon: "checkmark.seal.fill", color: .appLeaf)
+                                        }
+                                        if includePointsUsage {
+                                            contributorRow(label: "Earned from points", value: pointsPart, icon: "sparkles", color: .appGiraffe)
+                                        }
+                                        if card.manualClaimedValue > 0 {
+                                            contributorRow(label: "Prior history", value: card.manualClaimedValue, icon: "clock.fill", color: .secondary)
+                                        }
                                     }
                                 }
                             }
@@ -295,6 +311,32 @@ struct PortfolioOverviewView: View {
         case .quarterly:    return "this quarter"
         case .semiAnnually: return "this half-year"
         case .annually:     return "this year"
+        }
+    }
+
+    /// Adjective form for a "<X> benefits" heading.
+    private func periodAdjective(_ period: BenefitPeriod) -> String {
+        switch period {
+        case .monthly:      return "Monthly"
+        case .quarterly:    return "Quarterly"
+        case .semiAnnually: return "Semi-annual"
+        case .annually:     return "Annual"
+        }
+    }
+
+    /// One line in the fee-recoup contributor breakdown.
+    private func contributorRow(label: String, value: Double, icon: String, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundStyle(color)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text("$\(Int(value))")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(color)
         }
     }
 
