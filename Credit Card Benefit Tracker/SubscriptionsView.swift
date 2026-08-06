@@ -117,6 +117,9 @@ private enum SubscriptionDetector {
         for card in cards {
             for statement in card.statements {
                 for row in statement.rows {
+                    // Negative/zero amounts are credits, refunds, or returned
+                    // payments — never a subscription charge.
+                    guard row.amount > 0 else { continue }
                     let normalized = normalize(row.transactionDescription)
                     guard !normalized.isEmpty else { continue }
                     let rounded = (row.amount * 100).rounded() / 100   // nearest cent
