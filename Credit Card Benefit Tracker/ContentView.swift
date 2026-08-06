@@ -60,15 +60,17 @@ struct ContentView: View {
             NotificationScheduler.scheduleAll(userCards: userCards)
         }
     }
-    @State private var showSharedImport = false
+    // item-based sheet payloads: the sheet content receives its data directly,
+    // so the sheet can never render blank while a separate @State is still empty
+    // (the cold-launch-after-share race).
+    @State private var sharedImportPayload: SharedImportPayload? = nil
     @State private var showSharedUploadSheet = false
-    @State private var sharedInboxFiles: [SharedInbox.InboxFile] = []
 
     private func checkSharedInbox() {
-        // Delay the first check: on a cold launch the view isn't attached yet
-        // (an immediate sheet presentation gets dropped), and the Share
-        // Extension may still be finishing its file copy when the app
-        // foregrounds. One delayed check + one retry covers both races.
+        // On a cold launch the view isn't attached yet (an immediate sheet
+        // presentation gets dropped), and the Share Extension may still be
+        // finishing its file copy when the app foregrounds. One delayed check +
+        // one retry covers both races.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
             presentSharedInboxIfNeeded()
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
@@ -78,11 +80,10 @@ struct ContentView: View {
     }
 
     private func presentSharedInboxIfNeeded() {
-        guard !showSharedImport, !showSharedUploadSheet else { return }
+        guard sharedImportPayload == nil, !showSharedUploadSheet else { return }
         let pending = SharedInbox.pendingFiles()
         if !pending.isEmpty {
-            sharedInboxFiles = pending
-            showSharedImport = true
+            sharedImportPayload = SharedImportPayload(files: pending)
         }
     }
 
@@ -145,7 +146,7 @@ struct ContentView: View {
             NotificationScheduler.requestPermission()
             checkSharedInbox()
         }
-        .sheet(isPresented: $showSharedImport, onDismiss: {
+        .sheet(item: $sharedImportPayload, onDismiss: {
             // If the user tapped Import, the coordinator holds the files —
             // open the upload sheet pre-loaded with them. Presenting the second
             // sheet immediately inside onDismiss races the first sheet's
@@ -157,8 +158,10 @@ struct ContentView: View {
                 guard !SharedImportCoordinator.shared.filesToImport.isEmpty else { return }
                 showSharedUploadSheet = true
             }
-        }) {
-            SharedImportSheet(files: sharedInboxFiles)
+        }) { payload in
+            // Content receives its files directly — never reads a separate
+            // @State that could still be empty on the first render.
+            SharedImportSheet(files: payload.files)
         }
         .sheet(isPresented: $showSharedUploadSheet) {
             StatementUploadSheet(userCards: userCards) {}
@@ -167,6 +170,14 @@ struct ContentView: View {
             NotificationScheduler.scheduleAll(userCards: userCards)
         }
     }
+}
+
+/// Identifiable wrapper so the shared-import sheet can be presented with
+/// `.sheet(item:)` — the files travel with the payload, avoiding the blank-
+/// first-render race of `.sheet(isPresented:)` reading a separate @State.
+private struct SharedImportPayload: Identifiable {
+    let id = UUID()
+    let files: [SharedInbox.InboxFile]
 }
 
 /// Shown when the Share Extension has stashed statement files in the
