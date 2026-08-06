@@ -178,12 +178,15 @@ final class UserCard {
         return cal.date(byAdding: .year, value: -1, to: now) ?? now
     }
 
-    /// Zero the fee-year usage accumulator when a new fee year begins.
+    /// Reset the per-fee-year recoup inputs when a new fee year begins: the
+    /// benefit-usage accumulator and the prior-history value (a one-time
+    /// pre-app catch-up that only applies to the fee year it was entered in).
     func rollFeeYearIfNeeded() {
         let start = currentFeeYearStart
         if let anchor = feeYearUsageAnchor {
             if !Calendar.current.isDate(anchor, inSameDayAs: start) {
                 feeYearBenefitUsage = 0
+                manualClaimedValue = 0
                 feeYearUsageAnchor = start
             }
         } else {

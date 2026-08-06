@@ -201,66 +201,10 @@ struct EarningsTabContent: View {
         }
     }
 
-    // Dollar value of points earned from uploaded statements
+    // Dollar value of points earned from uploaded statements over the CURRENT
+    // fee year (from the fee anniversary), not a flat trailing 12 months.
     private var pointsDollarValue: Double {
-        let cpp = CardRecommendationEngine.programs[card.catalogCardID]?.cpp ?? 1.0
-        var totalPoints = 0.0
-        let highlights = catalog.map { CreditCardCatalog.earningHighlights(for: $0) } ?? []
-        let oneYearAgo = Calendar.current.date(byAdding: .year, value: -1, to: Date())!
-        for statement in card.statements {
-            for row in statement.rows {
-                guard row.transactionDate >= oneYearAgo else { continue }
-                let cat = row.category.lowercased()
-                var multiplier = 1.0
-                for highlight in highlights {
-                    let h = highlight.lowercased()
-                    let matches: Bool
-                    switch cat {
-                    case let c where c.contains("restaurant") || c.contains("dining"):
-                        matches = h.contains("restaurant") || h.contains("dining")
-                    case let c where c.contains("supermarket") || c.contains("grocery"):
-                        matches = h.contains("supermarket") || h.contains("grocery")
-                    case let c where c.contains("flight") || c.contains("airline"):
-                        matches = h.contains("flight") || h.contains("airline")
-                    case let c where c.contains("hotel") || c.contains("resort"):
-                        matches = h.contains("hotel") || h.contains("resort")
-                    case let c where c.contains("gas") || c.contains("fuel"):
-                        matches = h.contains("gas station") || h.contains("fuel")
-                    case let c where c.contains("transit") || c.contains("rideshare"):
-                        matches = h.contains("transit") || h.contains("rideshare")
-                    case let c where c.contains("streaming"):
-                        matches = h.contains("streaming")
-                    case let c where c.contains("drugstore") || c.contains("pharmacy"):
-                        matches = h.contains("drugstore") || h.contains("pharmacy")
-                    default:
-                        matches = false
-                    }
-                    if matches {
-                        // Pull the multiplier out of the highlight string (e.g. "4x" or "6%").
-                        // Evaluate ALL matching highlights and keep the max — don't break,
-                        // or a lower rate can shadow a higher one.
-                        if let m = extractMultiplier(from: highlight), m > multiplier {
-                            multiplier = m
-                        }
-                    }
-                }
-                totalPoints += row.amount * multiplier
-            }
-        }
-        return totalPoints * cpp / 100.0
-    }
-
-    private func extractMultiplier(from highlight: String) -> Double? {
-        let lower = highlight.lowercased()
-        if let range = lower.range(of: #"(\d+(?:\.\d+)?)x"#, options: .regularExpression) {
-            let s = String(lower[range]).replacingOccurrences(of: "x", with: "")
-            return Double(s)
-        }
-        if let range = lower.range(of: #"(\d+(?:\.\d+)?)%"#, options: .regularExpression) {
-            let s = String(lower[range]).replacingOccurrences(of: "%", with: "")
-            return Double(s)
-        }
-        return nil
+        PointsValuer.dollarValue(for: card, since: card.currentFeeYearStart)
     }
 
     private var claimedValue: Double {
@@ -295,7 +239,7 @@ struct EarningsTabContent: View {
                     breakdownRow(label: "Benefits used", value: benefitsClaimedValue, icon: "checkmark.circle.fill", color: .appLeaf)
                 }
                 if pointsDollarValue > 0 {
-                    breakdownRow(label: "Points earned (last 12 mo)", value: pointsDollarValue, icon: "sparkles", color: .purple)
+                    breakdownRow(label: "Points earned (this fee year)", value: pointsDollarValue, icon: "sparkles", color: .purple)
                 }
                 if card.manualClaimedValue > 0 {
                     breakdownRow(label: "Prior history", value: card.manualClaimedValue, icon: "clock.fill", color: .orange)
