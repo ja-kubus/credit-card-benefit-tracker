@@ -70,7 +70,6 @@ struct BenefitsView: View {
     }
 
     var body: some View {
-        NavigationStack {
             VStack(spacing: 0) {
                 // Card filtering dropdown
                 VStack(spacing: 12) {
@@ -137,7 +136,6 @@ struct BenefitsView: View {
             .onChange(of: userCards.map { "\($0.persistentModelID)|\($0.statements.count)" }) { _, _ in
                 rebuildStatementMatchCache()
             }
-        }
     }
 
     // MARK: - Period Picker

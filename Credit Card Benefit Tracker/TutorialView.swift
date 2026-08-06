@@ -117,8 +117,10 @@ struct TutorialView: View {
             // Upload Statements - Grid view (bottom overlay)
             CardsView()
         case 9:
-            // Browse All Benefits - Benefits page
-            BenefitsView()
+            // Browse All Benefits - Benefits page (BenefitsView no longer wraps
+            // itself in a NavigationStack — the Dashboard tab provides one — so
+            // give it one here for the standalone tutorial render).
+            NavigationStack { BenefitsView() }
         case 10:
             // Best Card Recommendations
             RecommendationsView()
@@ -393,7 +395,7 @@ struct TutorialOverlay: View {
         case 6: return "Benefits are organized by time period - Monthly, Quarterly, Semi-Annual, and Annual benefits."
         case 7: return "The Points & Statements tab lets you upload credit card statements to track points earned."
         case 8: return "Tap the upload button at the top to add PDF statements from your card issuer. The app automatically categorizes transactions."
-        case 9: return "The Benefits tab shows all benefits across your cards. You can search benefits, see the expiring soon strip, and track value remaining across your wallet."
+        case 9: return "The Value tab has three views: Overview (fee-vs-value), Benefits (shown here — search, expiring soon, value remaining), and Spending (category breakdown)."
         case 10: return "See which card in your wallet earns the most for each spending category. Point valuations are factored in, so a 14x Hilton card is correctly ranked against a 4x Amex card."
         case 11: return "Track whether your cards are earning their keep. Benefits used, points earned from statements, and any prior history add up toward breaking even on your annual fee."
         case 12: return "In Settings, you can enable notifications for missed benefits and view your app preferences."

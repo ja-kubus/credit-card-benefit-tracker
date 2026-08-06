@@ -111,9 +111,9 @@ struct ContentView: View {
                         Label("Wallet", systemImage: "creditcard.fill")
                     }
 
-                BenefitsView()
+                DashboardView()
                     .tabItem {
-                        Label("Benefits", systemImage: "checkmark.seal.fill")
+                        Label("Value", systemImage: "square.grid.2x2.fill")
                     }
                 RecommendationsView()
                     .tabItem {
