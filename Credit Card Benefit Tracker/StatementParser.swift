@@ -752,17 +752,27 @@ class StatementParser {
                     
                     guard let transDate = parseDate(dateWithYear) else { continue }
                     guard let amount = parseAmount(String(amountStr)) else { continue }
-                    
-                    // Skip payments and credits (they start with - or contain PAYMENT/CREDIT)
-                    if amountStr.starts(with: "-") || remainder.uppercased().contains("PAYMENT") || remainder.uppercased().contains("CREDIT") {
-                        print("      ⊘ Skipped payment/credit: \(remainder)")
+
+                    // Skip ONLY bill payments (paying off the card). Merchant
+                    // refunds/reversals must be KEPT with their negative sign so
+                    // they net out the points earned on the reversed purchases.
+                    let upper = remainder.uppercased()
+                    let isBillPayment = upper.contains("AUTOPAY")
+                        || upper.contains("AUTOMATIC PAYMENT")
+                        || upper.contains("ONLINE PAYMENT")
+                        || upper.contains("MOBILE PAYMENT")
+                        || upper.contains("PAYMENT THANK")
+                        || upper.contains("PAYMENT - THANK")
+                        || upper.contains("ELECTRONIC PAYMENT")
+                    if isBillPayment {
+                        print("      ⊘ Skipped bill payment: \(remainder)")
                         continue
                     }
-                    
+
                     // Description is everything between date and amount
                     let descriptionParts = components.dropLast()
                     let description = descriptionParts.joined(separator: " ")
-                    
+
                     guard !description.isEmpty else { continue }
                     guard !isSummaryLine(description) else { continue }
 
@@ -770,11 +780,11 @@ class StatementParser {
                     let row = StatementRow(
                         transactionDate: transDate,
                         category: category,
-                        amount: abs(amount),
+                        amount: amount,   // preserve sign — refunds are negative
                         transactionDescription: description
                     )
                     rows.append(row)
-                    print("      ✓ Parsed: \(dateStr) | \(description) | $\(abs(amount))")
+                    print("      ✓ Parsed: \(dateStr) | \(description) | $\(amount)")
                 }
             }
         }
@@ -1025,14 +1035,26 @@ class StatementParser {
     }
     
     private static func parseAmount(_ amountString: String) -> Double? {
-        let cleaned = amountString
-            .trimmingCharacters(in: .whitespaces)
+        var s = amountString.trimmingCharacters(in: .whitespaces)
+        var negative = false
+
+        // Parenthesized negative, e.g. "($50.00)"
+        if s.hasPrefix("(") && s.hasSuffix(")") {
+            negative = true
+            s = String(s.dropFirst().dropLast())
+        }
+        // Leading or trailing minus, e.g. "-$50.00" or "$50.00-"
+        if s.hasPrefix("-") { negative = true; s = String(s.dropFirst()) }
+        if s.hasSuffix("-") { negative = true; s = String(s.dropLast()) }
+
+        let cleaned = s
             .replacingOccurrences(of: "$", with: "")
             .replacingOccurrences(of: ",", with: "")
             .replacingOccurrences(of: " ", with: "")
             .replacingOccurrences(of: "⧫", with: "")  // Remove diamond symbol
-        
-        return Double(cleaned)
+
+        guard let value = Double(cleaned) else { return nil }
+        return negative ? -abs(value) : value
     }
 }
 
@@ -1040,6 +1062,12 @@ class StatementParser {
 
 struct CategoryDetector {
     static func detect(merchant: String, issuer: String) -> String {
+        // Issuer-specific overrides win first (e.g. Chase codes DoorDash as
+        // dining). Maintained in MerchantCategoryRules, not user-editable.
+        if let override = MerchantCategoryRules.category(forMerchant: merchant, issuer: issuer) {
+            return override
+        }
+
         let lowerMerchant = merchant.lowercased()
         
         // Restaurant keywords

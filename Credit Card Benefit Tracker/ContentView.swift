@@ -12,6 +12,9 @@ struct ContentView: View {
     @AppStorage("hasCompletedTutorial") private var hasCompletedTutorial = false
     @AppStorage("didNormalizeStatementNames") private var didNormalizeStatementNames = false
     @AppStorage("didCleanupSummaryRows") private var didCleanupSummaryRows = false
+    // Bump `merchantRulesVersion` whenever MerchantCategoryRules changes to re-apply.
+    @AppStorage("appliedMerchantRulesVersion") private var appliedMerchantRulesVersion = 0
+    private let merchantRulesVersion = 1
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var modelContext
     @Query private var userCards: [UserCard]
@@ -62,6 +65,26 @@ struct ContentView: View {
         }
         if removed > 0 { try? modelContext.save() }
         didCleanupSummaryRows = true
+    }
+
+    /// Re-apply the developer-owned MerchantCategoryRules overrides to already-
+    /// stored transactions (e.g. Chase DoorDash → dining) without re-uploading.
+    /// Override-only: leaves rows a rule doesn't touch (incl. manual edits) alone.
+    private func recategorizeWithMerchantRules() {
+        guard appliedMerchantRulesVersion < merchantRulesVersion else { return }
+        let statements = (try? modelContext.fetch(FetchDescriptor<Statement>())) ?? []
+        var changed = false
+        for statement in statements {
+            for row in statement.rows {
+                if let override = MerchantCategoryRules.category(forMerchant: row.transactionDescription, issuer: statement.issuers),
+                   row.category != override {
+                    row.category = override
+                    changed = true
+                }
+            }
+        }
+        if changed { try? modelContext.save() }
+        appliedMerchantRulesVersion = merchantRulesVersion
     }
 
     /// Roll each card's fee-year usage accumulator over when a new fee year has
@@ -192,6 +215,7 @@ struct ContentView: View {
         .onAppear {
             normalizeExistingStatementNames()
             cleanupSummaryTransactionRows()
+            recategorizeWithMerchantRules()
             rollFeeYears()
             // Seed already-satisfied conditions silently (read, no banner) so we
             // don't banner-storm on launch for states that were already true.
