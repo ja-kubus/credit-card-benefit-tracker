@@ -797,9 +797,14 @@ struct PointsBreakdownView: View {
     @State private var showingStatementDetail = false
     
     var recentStatements: [Statement] {
-        // All statements, newest first. (The Menu scrolls when there are many;
-        // capping the list hid older statements until some were deleted.)
-        card.statements.sorted { $0.statementMonth > $1.statementMonth }
+        // All statements, most recent statement month first (tie-break by upload
+        // time). The Menu scrolls when there are many.
+        card.statements.sorted {
+            if $0.statementMonth != $1.statementMonth {
+                return $0.statementMonth > $1.statementMonth
+            }
+            return $0.uploadDate > $1.uploadDate
+        }
     }
 
     private static let statementMonthFormatter: DateFormatter = {
@@ -853,7 +858,7 @@ struct PointsBreakdownView: View {
                                     HStack(spacing: 6) {
                                         Image(systemName: "checkmark.circle.fill")
                                             .foregroundStyle(Color.appLeaf)
-                                        Text("You're all caught up for \(selectedYear).")
+                                        Text("You're all caught up for \(String(selectedYear)).")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
