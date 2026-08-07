@@ -19,31 +19,20 @@ enum PointsValuer {
         let catalog = CreditCardCatalog.all.first { $0.id == card.catalogCardID }
         let highlights = catalog.map { CreditCardCatalog.earningHighlights(for: $0) } ?? []
 
-        // Net spend per merchant. A refund/reversal (negative) nets against that
-        // merchant's purchases, so points earned on a reversed charge are removed
-        // (e.g. fraudulent Vinted charges that were all reversed → net 0 → no
-        // points). A benefit STATEMENT CREDIT is a separate "merchant" whose net
-        // is negative on its own; we clamp per-merchant net at 0, so it never
-        // subtracts points from your real purchases (the $150 dining credit does
-        // NOT erase the points from the $250 dinner).
-        struct Bucket { var net: Double = 0; var category: String = "Other" }
-        var buckets: [String: Bucket] = [:]
+        // Sum every transaction at its category's multiplier. Negative rows
+        // (refunds, reversals, statement credits) subtract points at the same
+        // multiplier, so they net against spend the way the issuer does:
+        //   • Reversed fraud charges (e.g. Vinted +/-) → net to 0 points.
+        //   • A $182.72 travel credit on a 4x flight → removes ~731 pts, leaving
+        //     points on the net (~533), matching the statement.
+        // Total is clamped at 0 so credits can never drive points negative.
+        var totalPoints = 0.0
         for statement in card.statements {
             for row in statement.rows where row.transactionDate >= since {
-                let key = normalizedMerchant(row.transactionDescription)
-                var b = buckets[key] ?? Bucket()
-                b.net += row.amount
-                if row.amount > 0 { b.category = row.category }  // category from an actual charge
-                buckets[key] = b
+                totalPoints += row.amount * multiplier(forCategory: row.category, highlights: highlights)
             }
         }
-
-        var totalPoints = 0.0
-        for (_, b) in buckets {
-            guard b.net > 0 else { continue }   // fully refunded or standalone credit → no points
-            totalPoints += b.net * multiplier(forCategory: b.category, highlights: highlights)
-        }
-        return totalPoints * cpp / 100.0
+        return max(0, totalPoints) * cpp / 100.0
     }
 
     /// Earning multiplier for a category given the card's earning highlights.
@@ -80,17 +69,6 @@ enum PointsValuer {
         return multiplier
     }
 
-    /// Normalize a merchant so a purchase and its refund/reversal bucket together
-    /// (strips store/reference numbers, refund words, and punctuation).
-    private static func normalizedMerchant(_ description: String) -> String {
-        var t = description.lowercased()
-        t = t.replacingOccurrences(of: "#\\s*\\d+", with: " ", options: .regularExpression)
-        t = t.replacingOccurrences(of: "\\b\\d{3,}\\b", with: " ", options: .regularExpression)
-        t = t.replacingOccurrences(of: "\\b(refund|reversal|reversed|return|returned|credit|adjustment)\\b", with: " ", options: .regularExpression)
-        t = t.replacingOccurrences(of: "[*#.,/\\-]", with: " ", options: .regularExpression)
-        t = t.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-        return t.trimmingCharacters(in: .whitespaces)
-    }
 
     /// Convenience: points value over the last 12 months.
     static func dollarValueLast12Months(for card: UserCard) -> Double {

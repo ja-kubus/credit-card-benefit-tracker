@@ -23,9 +23,15 @@ struct BenefitMatch: Identifiable {
     /// completion so deleting that statement can undo the auto-check-off.
     let sourceStatementHash: String
 
-    /// Sum of all matched rows' amounts, capped at the benefit's dollarAmount.
+    /// True when the match came from a statement CREDIT line (a negative amount
+    /// that signifies the benefit was actually redeemed) rather than a guessed
+    /// purchase — a much stronger signal.
+    var fromCredit: Bool { matchedRows.contains { $0.amount < 0 } }
+
+    /// Sum of the matched rows' magnitudes, capped at the benefit's dollarAmount.
+    /// Uses absolute value so a credit line (e.g. -$182.72) counts as $182.72 used.
     var totalMatchedAmount: Double {
-        min(matchedRows.reduce(0) { $0 + $1.amount }, completion.dollarAmount)
+        min(matchedRows.reduce(0) { $0 + abs($1.amount) }, completion.dollarAmount)
     }
 
     /// True when the summed matched amount >= the benefit's dollarAmount (full completion);
@@ -52,41 +58,60 @@ enum BenefitMatcher {
             let currentStart = periodStart(before: completion.resetDate, period: completion.benefitPeriod)
             let previousStart = periodStart(before: currentStart, period: completion.benefitPeriod)
 
-            let currentRows = rows.filter { row in
-                row.transactionDate >= currentStart &&
-                row.transactionDate < completion.resetDate &&
-                rowMatches(completion: completion, row: row)
+            func rowsIn(_ start: Date, _ end: Date, _ test: (StatementRow) -> Bool) -> [StatementRow] {
+                rows.filter { $0.transactionDate >= start && $0.transactionDate < end && test($0) }
             }
 
-            if !currentRows.isEmpty {
-                matches.append(BenefitMatch(
-                    completion: completion,
-                    matchedRows: currentRows,
-                    cardName: card.name,
-                    isFromPreviousPeriod: false,
-                    sourceStatementHash: sourceHash
-                ))
+            // 1) PREFERRED: a statement CREDIT line (negative amount) whose text
+            //    matches the benefit — proof the benefit was redeemed.
+            let creditCurrent = rowsIn(currentStart, completion.resetDate) { creditMatches(completion: completion, row: $0) }
+            if !creditCurrent.isEmpty {
+                matches.append(BenefitMatch(completion: completion, matchedRows: creditCurrent, cardName: card.name, isFromPreviousPeriod: false, sourceStatementHash: sourceHash))
+                continue
+            }
+            let creditPrevious = rowsIn(previousStart, currentStart) { creditMatches(completion: completion, row: $0) }
+            if !creditPrevious.isEmpty {
+                matches.append(BenefitMatch(completion: completion, matchedRows: creditPrevious, cardName: card.name, isFromPreviousPeriod: true, sourceStatementHash: sourceHash))
                 continue
             }
 
-            let previousRows = rows.filter { row in
-                row.transactionDate >= previousStart &&
-                row.transactionDate < currentStart &&
-                rowMatches(completion: completion, row: row)
+            // 2) FALLBACK: a matching purchase (positive charge) suggests the
+            //    benefit may have been used.
+            let chargeCurrent = rowsIn(currentStart, completion.resetDate) { $0.amount > 0 && rowMatches(completion: completion, row: $0) }
+            if !chargeCurrent.isEmpty {
+                matches.append(BenefitMatch(completion: completion, matchedRows: chargeCurrent, cardName: card.name, isFromPreviousPeriod: false, sourceStatementHash: sourceHash))
+                continue
             }
-
-            if !previousRows.isEmpty {
-                matches.append(BenefitMatch(
-                    completion: completion,
-                    matchedRows: previousRows,
-                    cardName: card.name,
-                    isFromPreviousPeriod: true,
-                    sourceStatementHash: sourceHash
-                ))
+            let chargePrevious = rowsIn(previousStart, currentStart) { $0.amount > 0 && rowMatches(completion: completion, row: $0) }
+            if !chargePrevious.isEmpty {
+                matches.append(BenefitMatch(completion: completion, matchedRows: chargePrevious, cardName: card.name, isFromPreviousPeriod: true, sourceStatementHash: sourceHash))
             }
         }
 
         return matches
+    }
+
+    /// Distinctive keywords from a benefit name (drops generic words), used to
+    /// tie a statement CREDIT line to the benefit it redeemed.
+    private static func benefitKeywords(_ name: String) -> [String] {
+        let stop: Set<String> = ["credit", "credits", "annual", "monthly", "quarterly", "semi",
+                                 "semiannual", "statement", "cash", "back", "fee", "fees", "up",
+                                 "to", "the", "of", "and", "a", "per", "year", "your", "on", "in",
+                                 "for", "&", "reimbursement", "membership", "up-to", "value"]
+        return name.lowercased()
+            .replacingOccurrences(of: "[^a-z0-9 ]", with: " ", options: .regularExpression)
+            .split(separator: " ").map(String.init)
+            .filter { $0.count >= 3 && !stop.contains($0) }
+    }
+
+    /// True when `row` is a CREDIT line (negative) whose description matches the
+    /// benefit — e.g. "TRAVEL CREDIT $300/YEAR -182.72" for an "Annual Travel Credit".
+    private static func creditMatches(completion: BenefitCompletion, row: StatementRow) -> Bool {
+        guard row.amount < 0 else { return false }
+        let desc = row.transactionDescription.lowercased()
+        let keywords = benefitKeywords(completion.benefitName)
+        guard !keywords.isEmpty else { return false }
+        return keywords.contains { desc.contains($0) }
     }
 
     /// True calendar-aligned period start: the period boundary one period-length before `date`.
@@ -189,6 +214,11 @@ struct BenefitMatchReviewSheet: View {
                     Text("\(merchant) • \(match.totalMatchedAmount, format: .currency(code: "USD")) • \(first.transactionDate, format: .dateTime.month(.abbreviated).day())")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+                if match.fromCredit {
+                    Label("Credit posted to your statement", systemImage: "checkmark.seal.fill")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Color.appLeaf)
                 }
                 if match.isFromPreviousPeriod {
                     Text("(from last period — confirm you used it before the reset)")
