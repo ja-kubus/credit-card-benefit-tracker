@@ -16,6 +16,23 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var userCards: [UserCard]
     @Query private var completions: [BenefitCompletion]
+    @Query private var appNotifications: [AppNotification]
+    @State private var bannerCenter = BannerCenter.shared
+    @State private var bannerDismissTask: Task<Void, Never>? = nil
+
+    /// Unread in-app event notifications — drives the Settings red dot.
+    private var unreadNotificationCount: Int {
+        appNotifications.filter { !$0.isRead }.count
+    }
+
+    private func dismissBanner(manual: Bool) {
+        bannerDismissTask?.cancel()
+        if manual, let n = bannerCenter.current?.notification {
+            n.isRead = true          // acknowledged → no longer "new"
+            try? modelContext.save()
+        }
+        withAnimation(.spring(duration: 0.3)) { bannerCenter.current = nil }
+    }
 
     /// One-time migration: rename statements uploaded before names were
     /// normalized to the uniform "<catalogCardID>_<issuer>_<Mon yyyy>" format.
@@ -127,8 +144,31 @@ struct ContentView: View {
                     .tabItem{
                         Label("Settings", systemImage: "gearshape.fill")
                     }
+                    .badge(unreadNotificationCount)
             }
-            
+
+            // In-app event banner (period completed / fee recouped)
+            if let payload = bannerCenter.current {
+                VStack {
+                    BannerView(payload: payload) { manual in
+                        dismissBanner(manual: manual)
+                    }
+                    Spacer()
+                }
+                .padding(.top, 8)
+                .zIndex(2)
+                .onAppear {
+                    // Auto-dismiss if missed; auto-dismiss does NOT mark read, so
+                    // it stays "new" in the center until viewed.
+                    bannerDismissTask?.cancel()
+                    bannerDismissTask = Task {
+                        try? await Task.sleep(for: .seconds(5))
+                        guard !Task.isCancelled else { return }
+                        dismissBanner(manual: false)
+                    }
+                }
+            }
+
             if !hasCompletedTutorial {
                 TutorialView()
                     .zIndex(1)
@@ -145,11 +185,17 @@ struct ContentView: View {
         .onChange(of: completions.map { "\($0.isCompleted)|\($0.isIgnored)|\($0.partialUsage)" }) { _, _ in
             debouncedWidgetSync()
             debouncedNotificationReschedule()
+            // A benefit was just toggled — check for period-complete / fee-recoup
+            // events and banner any that just became true.
+            NotificationEvents.evaluate(cards: userCards, context: modelContext, silent: false)
         }
         .onAppear {
             normalizeExistingStatementNames()
             cleanupSummaryTransactionRows()
             rollFeeYears()
+            // Seed already-satisfied conditions silently (read, no banner) so we
+            // don't banner-storm on launch for states that were already true.
+            NotificationEvents.evaluate(cards: userCards, context: modelContext, silent: true)
             WidgetDataWriter.sync(userCards: userCards)
             NotificationScheduler.requestPermission()
             checkSharedInbox()

@@ -368,6 +368,32 @@ struct EarningRate: Codable {
     }
 }
 
+/// A persisted in-app event notification (e.g. a benefit period completed, or a
+/// card's annual fee was recouped). Shown as a banner when created and kept in
+/// the Notifications Center until cleared. `isRead` drives the Settings red dot.
+@Model
+final class AppNotification {
+    var id: UUID = UUID()
+    var createdAt: Date = Date()
+    var kind: String = ""        // "periodCompleted" | "feeRecouped"
+    var title: String = ""
+    var message: String = ""
+    var cardName: String = ""
+    var dedupKey: String = ""    // uniqueness so an event fires only once per cycle
+    var isRead: Bool = false
+
+    init(kind: String, title: String, message: String, cardName: String, dedupKey: String, isRead: Bool = false) {
+        self.id = UUID()
+        self.createdAt = Date()
+        self.kind = kind
+        self.title = title
+        self.message = message
+        self.cardName = cardName
+        self.dedupKey = dedupKey
+        self.isRead = isRead
+    }
+}
+
 @Model
 final class NotificationSettings {
     var notificationsEnabled: Bool = true

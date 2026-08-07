@@ -4,32 +4,54 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct NotificationsCenterView: View {
     let userCards: [UserCard]
 
-    @State private var notifications: [NotificationScheduler.TriggeredNotification] = []
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \AppNotification.createdAt, order: .reverse) private var events: [AppNotification]
+    @State private var reminders: [NotificationScheduler.TriggeredNotification] = []
 
     var body: some View {
         Group {
-            if notifications.isEmpty {
+            if events.isEmpty && reminders.isEmpty {
                 ContentUnavailableView(
                     "No Notifications",
                     systemImage: "bell.slash",
-                    description: Text("Benefit reminders that have fired will appear here.")
+                    description: Text("Alerts (like completing a period's benefits or recouping a fee) and benefit reminders will appear here.")
                 )
             } else {
                 List {
-                    ForEach(notifications) { notification in
-                        row(for: notification)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button {
-                                    acknowledge(notification)
-                                } label: {
-                                    Label("Clear", systemImage: "checkmark")
-                                }
-                                .tint(Color.appLeaf)
+                    if !events.isEmpty {
+                        Section("Alerts") {
+                            ForEach(events) { event in
+                                eventRow(event)
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                        Button(role: .destructive) {
+                                            delete(event)
+                                        } label: {
+                                            Label("Clear", systemImage: "trash")
+                                        }
+                                    }
                             }
+                        }
+                    }
+
+                    if !reminders.isEmpty {
+                        Section("Reminders") {
+                            ForEach(reminders) { reminder in
+                                reminderRow(reminder)
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                        Button {
+                                            acknowledge(reminder)
+                                        } label: {
+                                            Label("Clear", systemImage: "checkmark")
+                                        }
+                                        .tint(Color.appLeaf)
+                                    }
+                            }
+                        }
                     }
                 }
             }
@@ -42,14 +64,14 @@ struct NotificationsCenterView: View {
                     Button {
                         clearAll()
                     } label: {
-                        Label("Clear All", systemImage: "checkmark.circle")
+                        Label("Clear All", systemImage: "trash")
                     }
-                    .disabled(notifications.isEmpty)
+                    .disabled(events.isEmpty && reminders.isEmpty)
 
                     Button {
-                        showCleared()
+                        showClearedReminders()
                     } label: {
-                        Label("Show Cleared", systemImage: "arrow.counterclockwise")
+                        Label("Show Cleared Reminders", systemImage: "arrow.counterclockwise")
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
@@ -57,67 +79,97 @@ struct NotificationsCenterView: View {
                 }
             }
         }
-        .onAppear(perform: reload)
+        .onAppear {
+            reminders = NotificationScheduler.triggeredNotifications(userCards: userCards)
+            markEventsRead()
+        }
     }
 
-    private func row(for notification: NotificationScheduler.TriggeredNotification) -> some View {
+    // MARK: - Rows
+
+    private func eventRow(_ event: AppNotification) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: event.kind == "feeRecouped" ? "creditcard.fill" : "checkmark.seal.fill")
+                .font(.title3)
+                .foregroundStyle(Color.appLeaf)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(event.title)
+                    .font(.subheadline.weight(.semibold))
+                Text(event.message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(event.createdAt.formatted(.relative(presentation: .named)))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            Spacer(minLength: 8)
+            if !event.isRead {
+                Circle().fill(Color.appCoral).frame(width: 8, height: 8).padding(.top, 6)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func reminderRow(_ reminder: NotificationScheduler.TriggeredNotification) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "bell.badge")
                 .font(.title3)
                 .foregroundStyle(Color.appBell)
                 .padding(.top, 2)
-
             VStack(alignment: .leading, spacing: 4) {
-                Text(notification.title)
+                Text(reminder.title)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                Text(notification.body)
+                Text(reminder.body)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text(notification.firedDate.formatted(.relative(presentation: .named)))
+                Text(reminder.firedDate.formatted(.relative(presentation: .named)))
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
-
-            Spacer(minLength: 8)
-
-            Button {
-                acknowledge(notification)
-            } label: {
-                Image(systemName: "checkmark.circle")
-                    .font(.title3)
-                    .foregroundStyle(Color.appCoral)
-            }
-            .buttonStyle(.plain)
         }
         .padding(.vertical, 4)
     }
 
     // MARK: - Actions
 
-    private func reload() {
-        notifications = NotificationScheduler.triggeredNotifications(userCards: userCards)
+    private func markEventsRead() {
+        var changed = false
+        for event in events where !event.isRead {
+            event.isRead = true
+            changed = true
+        }
+        if changed { try? modelContext.save() }
     }
 
-    private func acknowledge(_ notification: NotificationScheduler.TriggeredNotification) {
-        NotificationScheduler.acknowledge(NotificationScheduler.compositeKey(for: notification))
+    private func delete(_ event: AppNotification) {
         withAnimation {
-            notifications.removeAll { $0.id == notification.id && $0.firedDate == notification.firedDate }
+            modelContext.delete(event)
+            try? modelContext.save()
+        }
+    }
+
+    private func acknowledge(_ reminder: NotificationScheduler.TriggeredNotification) {
+        NotificationScheduler.acknowledge(NotificationScheduler.compositeKey(for: reminder))
+        withAnimation {
+            reminders.removeAll { $0.id == reminder.id && $0.firedDate == reminder.firedDate }
         }
     }
 
     private func clearAll() {
-        let keys = notifications.map { NotificationScheduler.compositeKey(for: $0) }
-        NotificationScheduler.acknowledgeAll(keys)
         withAnimation {
-            notifications = []
+            for event in events { modelContext.delete(event) }
+            try? modelContext.save()
+            let keys = reminders.map { NotificationScheduler.compositeKey(for: $0) }
+            NotificationScheduler.acknowledgeAll(keys)
+            reminders = []
         }
     }
 
-    private func showCleared() {
+    private func showClearedReminders() {
         NotificationScheduler.unacknowledgeAll()
         withAnimation {
-            reload()
+            reminders = NotificationScheduler.triggeredNotifications(userCards: userCards)
         }
     }
 }
