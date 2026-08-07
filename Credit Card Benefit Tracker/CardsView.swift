@@ -797,7 +797,9 @@ struct PointsBreakdownView: View {
     @State private var showingStatementDetail = false
     
     var recentStatements: [Statement] {
-        card.statements.sorted { $0.statementMonth > $1.statementMonth }.prefix(5).map { $0 }
+        // All statements, newest first. (The Menu scrolls when there are many;
+        // capping the list hid older statements until some were deleted.)
+        card.statements.sorted { $0.statementMonth > $1.statementMonth }
     }
 
     private static let statementMonthFormatter: DateFormatter = {
