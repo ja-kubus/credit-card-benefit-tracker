@@ -31,6 +31,7 @@ struct StatementUploadSheet: View {
         return cal.component(.year, from: lastMonth)
     }()
     @State private var userAdjustedMonth = false
+    @State private var skipDuplicateCheck = false
     @State private var showDocumentPicker = false
     @State private var isProcessing = false
     @State private var uploadError: ParsingError? = nil
@@ -269,6 +270,19 @@ struct StatementUploadSheet: View {
                             }
                         }
 
+                        // Duplicate-check override
+                        Toggle(isOn: $skipDuplicateCheck) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Skip duplicate check")
+                                    .font(.subheadline.weight(.medium))
+                                Text("Add every transaction even if it looks like one already uploaded. Use for recurring identical charges (e.g. tolls) wrongly flagged as duplicates.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .tint(Color.appCoral)
+                        .padding(.top, 4)
+
                         Spacer()
                     }
                     .padding()
@@ -421,19 +435,15 @@ struct StatementUploadSheet: View {
 
         guard !rows.isEmpty else { return pickerDate }
 
+        // Use the LATEST transaction's month as the statement month. Statements
+        // span two calendar months (e.g. mid-Feb to mid-Mar) and are identified
+        // by their closing month — the latest transaction. Using the majority
+        // month instead made consecutive statements infer the same neighboring
+        // month and collide when uploaded together.
         let cal = Calendar.current
-        var counts: [DateComponents: Int] = [:]
-        for row in rows {
-            let comps = cal.dateComponents([.year, .month], from: row.transactionDate)
-            counts[comps, default: 0] += 1
-        }
-
-        guard let majority = counts.max(by: { $0.value < $1.value })?.key,
-              let year = majority.year, let month = majority.month,
-              let date = cal.date(from: DateComponents(year: year, month: month, day: 1)) else {
-            return pickerDate
-        }
-        return date
+        guard let latest = rows.map({ $0.transactionDate }).max() else { return pickerDate }
+        let comps = cal.dateComponents([.year, .month], from: latest)
+        return cal.date(from: DateComponents(year: comps.year, month: comps.month, day: 1)) ?? pickerDate
     }
 
     private func categorizeAndUpload() {
@@ -480,29 +490,36 @@ struct StatementUploadSheet: View {
                             continue
                         }
 
-                        // Check for DUPLICATE TRANSACTIONS (same date, merchant, amount)
-                        let existingRows = card.statements.flatMap { $0.rows }
+                        // Check for DUPLICATE TRANSACTIONS (same date, merchant, amount).
+                        // Skipped entirely when the user opts to force-add — needed for
+                        // recurring identical charges (e.g. same-day toll rebills) that
+                        // are indistinguishable by date+merchant+amount.
                         var duplicateCount = 0
                         var filteredRows: [StatementRow] = []
 
-                        for newRow in parsedStatement.rows {
-                            let isDuplicateTransaction = existingRows.contains { existingRow in
-                                existingRow.transactionDate == newRow.transactionDate
-                                    && existingRow.transactionDescription.lowercased() == newRow.transactionDescription.lowercased()
-                                    && existingRow.amount == newRow.amount
-                            }
+                        if skipDuplicateCheck {
+                            filteredRows = parsedStatement.rows
+                        } else {
+                            let existingRows = card.statements.flatMap { $0.rows }
+                            for newRow in parsedStatement.rows {
+                                let isDuplicateTransaction = existingRows.contains { existingRow in
+                                    existingRow.transactionDate == newRow.transactionDate
+                                        && existingRow.transactionDescription.lowercased() == newRow.transactionDescription.lowercased()
+                                        && existingRow.amount == newRow.amount
+                                }
 
-                            if isDuplicateTransaction {
-                                duplicateCount += 1
-                            } else {
-                                filteredRows.append(newRow)
+                                if isDuplicateTransaction {
+                                    duplicateCount += 1
+                                } else {
+                                    filteredRows.append(newRow)
+                                }
                             }
                         }
 
                         print("   ✓ Filtered \(parsedStatement.rows.count) → \(filteredRows.count) (skipped \(duplicateCount))")
 
                         if filteredRows.isEmpty {
-                            failures.append("\(file.fileName): All transactions are duplicates. No new transactions to add.")
+                            failures.append("\(file.fileName): All transactions are duplicates. No new transactions to add. Turn on \"Skip duplicate check\" to add them anyway.")
                             continue
                         }
 
@@ -518,16 +535,25 @@ struct StatementUploadSheet: View {
                         )
 
                         // Compact, human-readable statement name, e.g. "CSR · Jun '26".
-                        let normalizedName = Self.normalizedStatementName(
+                        var normalizedName = Self.normalizedStatementName(
                             catalogCardID: card.catalogCardID,
                             issuer: parsedStatement.issuer,
                             month: newStatement.statementMonth
                         )
 
-                        // A statement for the same card + month already exists → treat as a duplicate.
+                        // If a statement with this name already exists, DON'T reject —
+                        // two legitimately-different statements can infer the same month
+                        // (statements span two months). True duplicates are already caught
+                        // by the content-hash check and row-level dedup above. Just make
+                        // the display name unique so both can coexist.
                         if card.statements.contains(where: { $0.fileName.lowercased() == normalizedName.lowercased() }) {
-                            failures.append("\(file.fileName): A statement for \(Self.monthLabel(newStatement.statementMonth)) already exists for this card. Delete it first to re-upload.")
-                            continue
+                            var suffix = 2
+                            var candidate = "\(normalizedName) (\(suffix))"
+                            while card.statements.contains(where: { $0.fileName.lowercased() == candidate.lowercased() }) {
+                                suffix += 1
+                                candidate = "\(normalizedName) (\(suffix))"
+                            }
+                            normalizedName = candidate
                         }
                         newStatement.fileName = normalizedName
 
@@ -604,6 +630,7 @@ struct StatementUploadSheet: View {
         selectedIssuer = ""
         selectedCard = nil
         userAdjustedMonth = false
+        skipDuplicateCheck = false
         pendingMatches = []
         successMessage = ""
         // Not-yet-uploaded shared files stay on disk in the inbox so they can be

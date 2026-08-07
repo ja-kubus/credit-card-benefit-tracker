@@ -994,7 +994,7 @@ class StatementParser {
                     let currentYear = Calendar.current.component(.year, from: Date())
                     dateComponents.year = currentYear
                     if let adjustedDate = Calendar.current.date(from: dateComponents) {
-                        return adjustedDate
+                        return correctIfFuture(adjustedDate)
                     }
                 }
 
@@ -1005,14 +1005,23 @@ class StatementParser {
                 if let year = comps.year, year < 100 {
                     comps.year = year + 2000
                     if let remapped = Calendar.current.date(from: comps) {
-                        return remapped
+                        return correctIfFuture(remapped)
                     }
                 }
-                return date
+                return correctIfFuture(date)
             }
         }
 
         return nil
+    }
+
+    /// Statement transactions are never in the future. When a parser assigns the
+    /// current year to a month/day-only date, a December statement uploaded the
+    /// following year lands in the future (e.g. "Dec 2026" instead of "Dec 2025").
+    /// Roll any future-dated transaction back one year.
+    private static func correctIfFuture(_ date: Date) -> Date {
+        guard date > Date() else { return date }
+        return Calendar.current.date(byAdding: .year, value: -1, to: date) ?? date
     }
     
     private static func parseAmount(_ amountString: String) -> Double? {
