@@ -21,6 +21,14 @@ import Foundation
 
 enum MerchantCategoryRules {
 
+    /// Rules that apply to EVERY issuer (a merchant that's always the same
+    /// category regardless of card). Checked before issuer-specific rules.
+    static let globalRules: [(keyword: String, category: String)] = [
+        ("resy", "Restaurants"),          // Resy = restaurant reservations/dining
+        ("frys", "Supermarkets"),         // Fry's Food (Kroger grocery)
+        ("fry's", "Supermarkets"),
+    ]
+
     /// issuer key -> ordered list of (merchant keyword, category). First match wins.
     static let rules: [String: [(keyword: String, category: String)]] = [
         "chase": [
@@ -48,11 +56,17 @@ enum MerchantCategoryRules {
 
     /// Returns the overridden category for a merchant on the given issuer, if any.
     static func category(forMerchant merchant: String, issuer: String) -> String? {
-        let key = canonicalIssuer(issuer)
-        guard let issuerRules = rules[key] else { return nil }
         let m = merchant.lowercased()
-        for rule in issuerRules where m.contains(rule.keyword) {
+        // Global rules first (apply to every issuer).
+        for rule in globalRules where m.contains(rule.keyword) {
             return rule.category
+        }
+        // Then issuer-specific rules.
+        let key = canonicalIssuer(issuer)
+        if let issuerRules = rules[key] {
+            for rule in issuerRules where m.contains(rule.keyword) {
+                return rule.category
+            }
         }
         return nil
     }

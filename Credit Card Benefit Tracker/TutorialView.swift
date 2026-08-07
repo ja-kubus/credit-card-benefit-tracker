@@ -53,7 +53,7 @@ struct TutorialView: View {
                 .zIndex(0)
             
             // Tutorial overlay with highlight and instructions (not shown on final step)
-            if currentStep != 13 {
+            if currentStep != 14 {
                 TutorialOverlay(
                     step: currentStep,
                     onContinue: handleContinue,
@@ -71,70 +71,63 @@ struct TutorialView: View {
             let allCardsBefore = try? modelContext.fetch(FetchDescriptor<UserCard>())
             cardCountBeforeTutorial = allCardsBefore?.count ?? 0
         }
-        .interactiveDismissDisabled(currentStep < 13) // Prevent swipe-to-dismiss during tutorial
+        .interactiveDismissDisabled(currentStep < 14) // Prevent swipe-to-dismiss during tutorial
     }
     
     @ViewBuilder
     private func contentForStep(_ step: Int) -> some View {
         switch step {
         case 0:
-            // Welcome - My Wallet page with no cards
+            // Welcome - Wallet tab with no cards
             CardsView()
         case 1:
-            // Tap the plus - My Wallet page (bottom overlay)
+            // Tap the plus - Wallet tab (bottom overlay, spotlight add button)
             CardsView()
         case 2:
             // Select a Card - Add card page
             AddCardView()
         case 3:
-            // Switch to Grid View - My Wallet page (bottom overlay)
+            // Switch to Grid View - Wallet tab (bottom overlay, spotlight toggle)
             CardsView()
         case 4:
-            // Managing Your Cards - My Wallet page
+            // Managing Your Cards - Wallet tab
             CardsView()
         case 5:
-            // Card Details - Earning Rates tab (bottom overlay)
+            // Card Details - Earning Rates tab
             if let card = selectedAddedCard {
                 CardTabsView(card: card, onDelete: nil)
             } else {
                 CardsView()
             }
         case 6:
-            // Benefits Overview - Card detail
+            // Card Benefits - Card detail
             if let card = selectedAddedCard {
                 CardTabsView(card: card, onDelete: nil)
             } else {
                 CardsView()
             }
         case 7:
-            // Points & Statements tab (bottom overlay)
-            if let card = selectedAddedCard {
-                CardTabsView(card: card, onDelete: nil)
-            } else {
-                CardsView()
-            }
-        case 8:
-            // Upload Statements - Grid view (bottom overlay)
+            // Upload Statements - Wallet tab (bottom overlay, spotlight upload)
             CardsView()
+        case 8:
+            // Value tab - Overview (annual fee vs value recoup)
+            DashboardView()
         case 9:
-            // Browse All Benefits - Benefits page (BenefitsView no longer wraps
-            // itself in a NavigationStack — the Dashboard tab provides one — so
-            // give it one here for the standalone tutorial render).
-            NavigationStack { BenefitsView() }
+            // Value tab - Benefits segment
+            DashboardView()
         case 10:
+            // Value tab - Spending segment
+            DashboardView()
+        case 11:
             // Best Card Recommendations
             RecommendationsView()
-        case 11:
-            // Annual Fee Tracker - Card tabs view
-            if let card = selectedAddedCard {
-                CardTabsView(card: card, onDelete: nil)
-            } else {
-                CardsView()
-            }
         case 12:
-            // Settings
-            SettingsView()
+            // Subscriptions - recurring charges
+            SubscriptionsView()
         case 13:
+            // Settings & Notifications
+            SettingsView()
+        case 14:
             // Thank you screen (no overlay)
             ThankYouView(onDone: {
                 completeTutorial()
@@ -177,8 +170,8 @@ struct TutorialView: View {
         }
         
         currentStep += 1
-        
-        if currentStep > 13 {
+
+        if currentStep > 14 {
             completeTutorial()
         }
     }
@@ -213,7 +206,7 @@ struct TutorialOverlay: View {
 
     /// Returns true for steps where we should darken the background and spotlight a button
     private func shouldSpotlight() -> Bool {
-        return [1, 3, 8].contains(step) // Steps with interactive buttons to click
+        return [1, 3, 7].contains(step) // Steps with interactive buttons to click
     }
     
     /// Get the spotlight frame for interactive buttons.
@@ -225,7 +218,7 @@ struct TutorialOverlay: View {
         switch step {
         case 1: registryKey = "addCard"
         case 3: registryKey = "gridToggle"
-        case 8: registryKey = "upload"
+        case 7: registryKey = "upload"
         default: registryKey = nil
         }
 
@@ -244,7 +237,7 @@ struct TutorialOverlay: View {
         switch step {
         case 1: return frame(centerX: screenWidth - 30)
         case 3: return frame(centerX: 76)
-        case 8: return frame(centerX: screenWidth - 78)
+        case 7: return frame(centerX: screenWidth - 78)
         default: return .zero
         }
     }
@@ -271,8 +264,8 @@ struct TutorialOverlay: View {
                 }
 
                 VStack {
-                    // For steps 1, 3, 7, 8 show at bottom; others at top
-                    if [1, 3, 7, 8].contains(step) {
+                    // For steps 1, 3, 7 show at bottom (spotlighted buttons); others at top
+                    if [1, 3, 7].contains(step) {
                         Spacer()
                         instructionCard
                     } else {
@@ -373,32 +366,34 @@ struct TutorialOverlay: View {
         case 3: return "Switch to Grid View"
         case 4: return "Managing Your Cards"
         case 5: return "Card Details"
-        case 6: return "Benefits Overview"
-        case 7: return "Points & Statements"
-        case 8: return "Upload Statements"
-        case 9: return "Browse All Benefits"
-        case 10: return "Best Card Recommendations"
-        case 11: return "Annual Fee Tracker"
-        case 12: return "Customize Your Settings"
+        case 6: return "Card Benefits"
+        case 7: return "Upload Statements"
+        case 8: return "Value: Recoup Your Fees"
+        case 9: return "Value: Browse Benefits"
+        case 10: return "Value: Spending Breakdown"
+        case 11: return "Best Card"
+        case 12: return "Subscriptions"
+        case 13: return "Settings & Notifications"
         default: return "Tutorial"
         }
     }
     
     private func stepDescription(_ step: Int) -> String {
         switch step {
-        case 0: return "This app helps you track credit card benefits and maximize your rewards. Let's get started by adding your first card!"
+        case 0: return "The Wallet tab holds all your cards. This app tracks their benefits and helps you maximize rewards. Let's add your first card!"
         case 1: return "Tap the plus (+) icon in the top right to add a new card."
         case 2: return "Add as many cards as you like from the list — you need at least one to continue. You can always add more later."
-        case 3: return "You can switch between accordion and grid views. Tap the toggle button in the top left to see grid mode."
-        case 4: return "In grid view, tap on a card and select the delete button to remove it. You'll get a confirmation prompt."
-        case 5: return "Tap on your card to open the detailed view. Here you can see all earning rates and categories."
-        case 6: return "Benefits are organized by time period - Monthly, Quarterly, Semi-Annual, and Annual benefits."
-        case 7: return "The Points & Statements tab lets you upload credit card statements to track points earned."
-        case 8: return "Tap the upload button at the top to add PDF statements from your card issuer. The app automatically categorizes transactions."
-        case 9: return "The Value tab has three views: Overview (fee-vs-value), Benefits (shown here — search, expiring soon, value remaining), and Spending (category breakdown)."
-        case 10: return "See which card in your wallet earns the most for each spending category. Point valuations are factored in, so a 14x Hilton card is correctly ranked against a 4x Amex card."
-        case 11: return "Track whether your cards are earning their keep. Benefits used, points earned from statements, and any prior history add up toward breaking even on your annual fee."
-        case 12: return "In Settings, you can enable notifications for missed benefits and view your app preferences."
+        case 3: return "Switch between accordion and grid layouts. Tap the toggle in the top left to see grid mode. There's also a filter to hide no-fee cards."
+        case 4: return "In grid view, tap a card and use the delete button to remove it. You'll get a confirmation prompt first."
+        case 5: return "Tap a card to open its details. The Earning Rates tab shows every category and how many points it earns."
+        case 6: return "Each card's benefits are grouped by period — Monthly, Quarterly, Semi-Annual, and Annual — so nothing slips by unused."
+        case 7: return "Tap the upload button to import PDF or CSV statements — you can also share a statement PDF straight into the app. Transactions are auto-categorized and statement credits become tracked benefits."
+        case 8: return "The Value tab opens on Overview: how much value each card has recouped against its annual fee. Pick a benefit period, choose what counts (benefits used or points from spend), and tap a card to see the breakdown."
+        case 9: return "The Benefits segment lets you search every benefit across all cards, see what's expiring soon and the value remaining, and mark benefits as used."
+        case 10: return "The Spending segment breaks down your statement spend by category over a date range. Filter by card and tap a category to see its transactions."
+        case 11: return "The Best Card tab shows which card earns the most for each spending category. Point valuations are factored in, and you can exclude restricted portal/loyalty rates."
+        case 12: return "The Subscriptions tab auto-detects recurring charges from your statements. Swipe to ignore ones you don't want tracked, and revisit them in the ignored list."
+        case 13: return "Settings is your notifications center — a red badge flags unread alerts like completed periods or recouped fees. Set per-card notification toggles, and restart this tutorial anytime. There's also a home-screen widget."
         default: return "Tutorial step"
         }
     }

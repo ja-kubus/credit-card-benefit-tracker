@@ -14,7 +14,7 @@ struct ContentView: View {
     @AppStorage("didCleanupSummaryRows") private var didCleanupSummaryRows = false
     // Bump `merchantRulesVersion` whenever MerchantCategoryRules changes to re-apply.
     @AppStorage("appliedMerchantRulesVersion") private var appliedMerchantRulesVersion = 0
-    private let merchantRulesVersion = 1
+    private let merchantRulesVersion = 2
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var modelContext
     @Query private var userCards: [UserCard]

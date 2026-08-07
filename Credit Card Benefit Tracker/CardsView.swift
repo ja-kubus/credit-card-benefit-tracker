@@ -737,65 +737,84 @@ struct PointsBreakdownView: View {
         return results
     }
     
+    /// Maps a display earning-category to the statement row categories it covers.
+    func statementCategories(for category: String) -> [String] {
+        switch category.lowercased() {
+        case "car rentals":
+            return ["car rental", "car rentals", "rental car", "rental cars"]
+        case "flights":
+            return ["flights", "airlines", "air travel"]
+        case "hotels":
+            return ["hotels", "hotel", "resorts"]
+        case "restaurants":
+            return ["restaurants", "dining"]
+        case "supermarkets":
+            return ["supermarkets", "grocery"]
+        case "gas stations":
+            return ["gas stations", "gas station", "fuel", "petrol"]
+        case "transit":
+            return ["transit", "commute", "rideshare", "uber", "lyft", "taxi"]
+        case "streaming":
+            return ["streaming", "netflix", "disney", "hulu", "spotify", "paramount", "peacock", "appletv", "prime video"]
+        case "fitness":
+            return ["gym", "fitness", "health club", "workout"]
+        case "entertainment":
+            return ["entertainment", "attraction", "ticketmaster", "event", "concert", "movie"]
+        case "drugstore":
+            return ["drugstore", "pharmacy", "cvs", "walgreens"]
+        case "apple":
+            return ["apple", "apple store"]
+        case "apple pay":
+            return ["apple pay", "apple wallet"]
+        case "apple & rotating":
+            return ["apple", "apple store", "rotating"]
+        case "physical card":
+            return ["physical card"]
+        default:
+            return [category.lowercased()]
+        }
+    }
+
     func calculatePointsForCategory(_ category: String) -> Double {
-        var total = 0.0
         guard let rate = earningRates.first(where: { $0.category.lowercased() == category.lowercased() }) else {
             return 0
         }
-        
-        // Map display categories to statement row categories
-        let statementCategories: [String] = {
-            switch category.lowercased() {
-            case "car rentals":
-                return ["car rental", "car rentals", "rental car", "rental cars"]
-            case "flights":
-                return ["flights", "airlines", "air travel"]
-            case "hotels":
-                return ["hotels", "hotel", "resorts"]
-            case "restaurants":
-                return ["restaurants", "dining"]
-            case "supermarkets":
-                return ["supermarkets", "grocery"]
-            case "gas stations":
-                return ["gas stations", "gas station", "fuel", "petrol"]
-            case "transit":
-                return ["transit", "commute", "rideshare", "uber", "lyft", "taxi"]
-            case "streaming":
-                return ["streaming", "netflix", "disney", "hulu", "spotify", "paramount", "peacock", "appletv", "prime video"]
-            case "fitness":
-                return ["gym", "fitness", "health club", "workout"]
-            case "entertainment":
-                return ["entertainment", "attraction", "ticketmaster", "event", "concert", "movie"]
-            case "drugstore":
-                return ["drugstore", "pharmacy", "cvs", "walgreens"]
-            case "apple":
-                return ["apple", "apple store"]
-            case "apple pay":
-                return ["apple pay", "apple wallet"]
-            case "apple & rotating":
-                return ["apple", "apple store", "rotating"]
-            case "physical card":
-                return ["physical card"]
-            default:
-                return [category.lowercased()]
-            }
-        }()
-        
+        let cats = statementCategories(for: category)
+        var total = 0.0
         for statement in currentYearStatements {
-            for row in statement.rows {
-                // Check if row category matches any of our mapped categories
-                if statementCategories.contains(where: { row.category.lowercased().contains($0) }) {
-                    total += row.amount * rate.multiplier
-                }
+            for row in statement.rows where cats.contains(where: { row.category.lowercased().contains($0) }) {
+                total += row.amount * rate.multiplier
             }
         }
         return total
     }
 
+    /// The individual transactions that make up a category's points (for the drill-down).
+    func transactionsForCategory(_ category: String) -> [PointsTransaction] {
+        guard let rate = earningRates.first(where: { $0.category.lowercased() == category.lowercased() }) else {
+            return []
+        }
+        let cats = statementCategories(for: category)
+        var result: [PointsTransaction] = []
+        for statement in currentYearStatements {
+            for row in statement.rows where cats.contains(where: { row.category.lowercased().contains($0) }) {
+                result.append(PointsTransaction(
+                    id: row.id,
+                    description: row.transactionDescription,
+                    date: row.transactionDate,
+                    amount: row.amount,
+                    points: row.amount * rate.multiplier
+                ))
+            }
+        }
+        return result.sorted { $0.date > $1.date }
+    }
+
     @Environment(\.modelContext) private var modelContext
     @State private var selectedStatement: Statement? = nil
     @State private var showingStatementDetail = false
-    
+    @State private var selectedPointsCategory: PointsCategorySelection? = nil
+
     var recentStatements: [Statement] {
         // All statements, most recent statement month first (tie-break by upload
         // time). The Menu scrolls when there are many.
@@ -965,10 +984,18 @@ struct PointsBreakdownView: View {
                             
                             VStack(spacing: 8) {
                                 ForEach(Array(earningRates.enumerated()), id: \.offset) { index, rate in
-                                    PointsCategoryRow(
-                                        rate: rate,
-                                        points: calculatePointsForCategory(rate.category)
-                                    )
+                                    Button {
+                                        selectedPointsCategory = PointsCategorySelection(
+                                            category: rate.category,
+                                            multiplier: rate.multiplier
+                                        )
+                                    } label: {
+                                        PointsCategoryRow(
+                                            rate: rate,
+                                            points: calculatePointsForCategory(rate.category)
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                                 
                                 // Total row
@@ -1007,6 +1034,107 @@ struct PointsBreakdownView: View {
                         showingStatementDetail = false
                         selectedStatement = nil
                     }
+                }
+            }
+            .sheet(item: $selectedPointsCategory) { selection in
+                PointsCategoryDetailSheet(
+                    category: selection.category,
+                    multiplier: selection.multiplier,
+                    transactions: transactionsForCategory(selection.category)
+                )
+            }
+        }
+    }
+}
+
+/// A transaction contributing to a category's points (for the drill-down).
+struct PointsTransaction: Identifiable {
+    let id: PersistentIdentifier
+    let description: String
+    let date: Date
+    let amount: Double
+    let points: Double
+}
+
+/// Identifiable selection wrapper for the points-category drill-down sheet.
+struct PointsCategorySelection: Identifiable {
+    let category: String
+    let multiplier: Double
+    var id: String { category }
+}
+
+/// Popup listing the transactions that make up a category's points.
+struct PointsCategoryDetailSheet: View {
+    let category: String
+    let multiplier: Double
+    let transactions: [PointsTransaction]
+    @Environment(\.dismiss) private var dismiss
+
+    private var totalPoints: Double { transactions.reduce(0) { $0 + $1.points } }
+    private var totalSpend: Double { transactions.reduce(0) { $0 + $1.amount } }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(String(format: multiplier == multiplier.rounded() ? "%.0fx" : "%.1fx", multiplier)) points")
+                                .font(.subheadline.weight(.semibold))
+                            Text(totalSpend, format: .currency(code: "USD"))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("\(totalPoints, format: .number.precision(.fractionLength(0)))")
+                                .font(.headline.weight(.bold))
+                                .foregroundStyle(Color.appLeaf)
+                            Text("points")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Section {
+                    if transactions.isEmpty {
+                        Text("No transactions in this category yet.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(transactions) { txn in
+                            HStack(alignment: .firstTextBaseline) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(txn.description.isEmpty ? category : txn.description)
+                                        .font(.subheadline)
+                                        .lineLimit(2)
+                                    Text(txn.date, format: .dateTime.year().month().day())
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text(txn.amount, format: .currency(code: "USD"))
+                                        .font(.subheadline.weight(.semibold))
+                                    Text("\(txn.points, format: .number.precision(.fractionLength(0))) pts")
+                                        .font(.caption2)
+                                        .foregroundStyle(txn.points >= 0 ? Color.appLeaf : .red)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+                } header: {
+                    Text("Transactions")
+                }
+            }
+            .navigationTitle(category)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .foregroundStyle(Color.appCoral)
                 }
             }
         }

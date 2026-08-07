@@ -409,7 +409,8 @@ struct SpendingBreakdownView: View {
     // User-selectable spending date range (defaults to the last ~3 months → today)
     @State private var spendingStartDate: Date = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
     @State private var spendingEndDate: Date = Date()
-    @State private var spendingCardFilter: PersistentIdentifier? = nil
+    // Selected cards to aggregate. Empty == all cards.
+    @State private var spendingSelectedCards: Set<PersistentIdentifier> = []
     @State private var selectedSpendingCategory: String? = nil
 
     /// Inclusive [start-of-day(start), end-of-day(end)] bounds for the spending filter.
@@ -435,7 +436,7 @@ struct SpendingBreakdownView: View {
         let bounds = spendingDateBounds
         var totals: [String: (amount: Double, count: Int)] = [:]
         for card in userCards {
-            if let filter = spendingCardFilter, card.persistentModelID != filter { continue }
+            if !spendingSelectedCards.isEmpty && !spendingSelectedCards.contains(card.persistentModelID) { continue }
             for statement in card.statements {
                 for row in statement.rows {
                     if row.transactionDate < bounds.start || row.transactionDate > bounds.end { continue }
@@ -456,7 +457,7 @@ struct SpendingBreakdownView: View {
         let bounds = spendingDateBounds
         var rows: [StatementRow] = []
         for card in userCards {
-            if let filter = spendingCardFilter, card.persistentModelID != filter { continue }
+            if !spendingSelectedCards.isEmpty && !spendingSelectedCards.contains(card.persistentModelID) { continue }
             for statement in card.statements {
                 for row in statement.rows {
                     if row.transactionDate < bounds.start || row.transactionDate > bounds.end { continue }
@@ -507,8 +508,12 @@ struct SpendingBreakdownView: View {
                             .font(.subheadline.weight(.semibold))
                         Spacer()
                         Button("Reset") {
-                            spendingStartDate = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
+                            // Set end first so the "From" picker's upper bound is
+                            // today before we move the start date back.
                             spendingEndDate = Date()
+                            spendingStartDate = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
+                            spendingSelectedCards = []      // back to all cards
+                            selectedSpendingCategory = nil
                         }
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Color.appCoral)
@@ -530,19 +535,26 @@ struct SpendingBreakdownView: View {
                 .padding(.horizontal)
                 .padding(.top, 8)
 
-                // Per-card filter chips (only when there's more than one card)
+                // Per-card filter chips — multi-select. "All Cards" is the empty
+                // state (aggregate everything); tapping individual cards adds them
+                // up. Selecting individuals deselects "All Cards" and vice-versa.
                 if userCards.count > 1 {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
-                            spendingCardChip(title: "All Cards", isSelected: spendingCardFilter == nil) {
-                                spendingCardFilter = nil
+                            spendingCardChip(title: "All Cards", isSelected: spendingSelectedCards.isEmpty) {
+                                spendingSelectedCards = []
                             }
                             ForEach(userCards) { card in
+                                let id = card.persistentModelID
                                 spendingCardChip(
                                     title: card.name,
-                                    isSelected: spendingCardFilter == card.persistentModelID
+                                    isSelected: spendingSelectedCards.contains(id)
                                 ) {
-                                    spendingCardFilter = card.persistentModelID
+                                    if spendingSelectedCards.contains(id) {
+                                        spendingSelectedCards.remove(id)
+                                    } else {
+                                        spendingSelectedCards.insert(id)
+                                    }
                                 }
                             }
                         }
