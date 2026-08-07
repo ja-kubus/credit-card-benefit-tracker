@@ -457,8 +457,8 @@ class StatementParser {
                 if let amount = parseAmount(trimmed) {
                     // Skip summary fields (e.g. "New Balance", "Previous Balance") that
                     // should never be treated as purchased transactions.
-                    if isSummaryLine(currentMerchant) || isSummaryLine(trimmed) {
-                        print("      ⊘ Skipped summary line: \(currentMerchant.isEmpty ? trimmed : currentMerchant)")
+                    if isSummaryLine(currentMerchant) || isSummaryLine(trimmed) || isBillPayment(currentMerchant) {
+                        print("      ⊘ Skipped summary/payment line: \(currentMerchant.isEmpty ? trimmed : currentMerchant)")
                         currentDate = nil
                         currentMerchant = ""
                         continue
@@ -543,13 +543,13 @@ class StatementParser {
                     // Format: Trans Date Post Date Description Amount
                     // Example: Mar 18 Mar 20 HCTRA EZ TAG REBILL281-875-3279TX $10.00
                     
-                    // Split by spaces to find the amount (last $ amount)
+                    // Split by spaces to find the amount (last amount-looking token,
+                    // including negative credits like "-$182.72").
                     let components = trimmed.split(separator: " ").map(String.init)
-                    
-                    // Find the amount (last component starting with $)
-                    guard let amountIndex = components.lastIndex(where: { $0.starts(with: "$") }) else { continue }
+
+                    guard let amountIndex = components.lastIndex(where: { looksLikeAmount($0) }) else { continue }
                     let amountStr = components[amountIndex]
-                    
+
                     // First two components are Trans Date (Mon DD)
                     // Third component is Post Month, Fourth is Post Day
                     // So we take components[0] + " " + components[1] as transaction date
@@ -557,14 +557,16 @@ class StatementParser {
                     let dateStr = "\(components[0]) \(components[1]) \(currentYear)"
                     guard let transDate = parseDate(dateStr) else { continue }
                     guard let amount = parseAmount(String(amountStr)) else { continue }
-                    
+
                     // Description is everything between post date (position 2-3) and amount
                     // Skip Trans Date (0), Trans Day (1), Post Month (2), Post Day (3)
                     let descriptionParts = components.dropFirst(4).dropLast()
                     let description = descriptionParts.joined(separator: " ")
-                    
+
                     guard !description.isEmpty else { continue }
                     guard !isSummaryLine(description) else { continue }
+                    // Keep refunds/credits (negative) — skip only bill payments.
+                    if isBillPayment(description) { continue }
 
                     let category = CategoryDetector.detect(merchant: description, issuer: "capital one")
                     let row = StatementRow(
@@ -643,26 +645,26 @@ class StatementParser {
                     // Get the rest of the line after the date
                     let remainder = String(trimmed[dateEndIndex...]).trimmingCharacters(in: .whitespaces)
                     
-                    // Split by space to find the amount (last component starting with $)
+                    // Split by space to find the amount (last amount-looking token).
                     let components = remainder.split(separator: " ").map(String.init)
-                    
-                    // Find the amount (last component starting with $)
-                    guard let amountIndex = components.lastIndex(where: { $0.starts(with: "$") }) else { continue }
+
+                    guard let amountIndex = components.lastIndex(where: { looksLikeAmount($0) }) else { continue }
                     let amountStr = components[amountIndex]
-                    
+
                     // Parse the date - add year
                     let currentYear = Calendar.current.component(.year, from: Date())
                     let dateWithYear = "\(dateStr)/\(currentYear)"
-                    
+
                     guard let transDate = parseDate(dateWithYear) else { continue }
                     guard let amount = parseAmount(String(amountStr)) else { continue }
-                    
+
                     // Description is everything between date and amount
                     let descriptionParts = components.dropLast()
                     let description = descriptionParts.joined(separator: " ")
-                    
+
                     guard !description.isEmpty else { continue }
                     guard !isSummaryLine(description) else { continue }
+                    if isBillPayment(description) { continue }
 
                     let category = CategoryDetector.detect(merchant: description, issuer: "discover")
                     let row = StatementRow(
@@ -841,9 +843,10 @@ class StatementParser {
                 continue
             }
             
-            // Skip payments (they contain AUTOPAY or start with -)
-            if trimmed.uppercased().contains("AUTOPAY") || trimmed.starts(with: "-") {
-                print("      ⊘ Skipped payment: \(trimmed)")
+            // Skip only bill payments — NOT refunds/credits (which start with "-"
+            // and must be kept so they net earned points).
+            if isBillPayment(trimmed) {
+                print("      ⊘ Skipped bill payment: \(trimmed)")
                 continue
             }
             
@@ -858,10 +861,10 @@ class StatementParser {
                     let components = trimmed.split(separator: " ").map(String.init)
                     
                     print("      🔍 Citi line components (\(components.count)): \(components)")
-                    
-                    // Find the amount (last component starting with $)
-                    guard let amountIndex = components.lastIndex(where: { $0.starts(with: "$") }) else {
-                        print("      ⚠️  No $ amount found in components")
+
+                    // Find the amount (last amount-looking token, incl. "-$" credits)
+                    guard let amountIndex = components.lastIndex(where: { looksLikeAmount($0) }) else {
+                        print("      ⚠️  No amount found in components")
                         continue
                     }
                     let amountStr = components[amountIndex]
@@ -924,6 +927,31 @@ class StatementParser {
     /// Returns true if the given text is a statement summary field (e.g. "New Balance",
     /// "Previous Balance", "Minimum Payment Due") rather than a real purchased transaction.
     /// Used to prevent summary lines from being picked up as merchants.
+    /// True for a bill PAYMENT (paying off the card) — these are skipped. Merchant
+    /// refunds/statement credits are NOT bill payments and must be kept (negative)
+    /// so they net earned points.
+    static func isBillPayment(_ text: String) -> Bool {
+        let u = text.uppercased()
+        if u.contains("AUTOPAY") || u.contains("PYMT") { return true }
+        if u.contains("PAYMENT") && (u.contains("THANK") || u.contains("AUTO") || u.contains("ONLINE")
+            || u.contains("MOBILE") || u.contains("ELECTRONIC") || u.contains("RECEIVED") || u.contains("- THANK")) {
+            return true
+        }
+        return false
+    }
+
+    /// True when a token looks like a currency amount (handles "$10", "-$10",
+    /// "-10", "($10)", "10.00-"), used to find the amount column in a split line.
+    static func looksLikeAmount(_ token: String) -> Bool {
+        let t = token.trimmingCharacters(in: .whitespaces)
+        guard t.contains(where: { $0.isNumber }) else { return false }
+        if t.contains("$") { return true }
+        // A bare number with a leading/trailing minus or parens (no letters).
+        let noSign = t.replacingOccurrences(of: "[()\\-]", with: "", options: .regularExpression)
+        return Double(noSign.replacingOccurrences(of: ",", with: "")) != nil
+            && (t.hasPrefix("-") || t.hasSuffix("-") || (t.hasPrefix("(") && t.hasSuffix(")")))
+    }
+
     static func isSummaryLine(_ text: String) -> Bool {
         let lower = text.lowercased().trimmingCharacters(in: .whitespaces)
         let summaryPhrases = [
