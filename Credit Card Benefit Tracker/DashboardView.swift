@@ -679,13 +679,70 @@ private struct IdentifiableString: Identifiable {
     init(_ value: String) { self.value = value }
 }
 
-/// Popup listing every transaction in a single spending category.
+/// Popup listing the transactions in a spending category, with sorting, an
+/// option to pool similar merchants, and inline category editing.
 struct SpendingCategoryDetailSheet: View {
     let category: String
-    let rows: [StatementRow]
+    @State private var rows: [StatementRow]
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+
+    @State private var poolSimilar = false
+    @State private var sortMode: SortMode = .newest
+    @State private var editingRow: StatementRow?
+
+    init(category: String, rows: [StatementRow]) {
+        self.category = category
+        _rows = State(initialValue: rows)
+    }
+
+    enum SortMode: String, CaseIterable, Identifiable {
+        case newest = "Newest"
+        case priceHigh = "Price: High → Low"
+        case priceLow = "Price: Low → High"
+        var id: String { rawValue }
+    }
+
+    private static let allCategories = [
+        "Restaurants", "Supermarkets", "Flights", "Hotels", "Car Rentals", "Transit",
+        "Streaming", "Fitness", "Entertainment", "Drugstore", "Gas Stations", "Travel",
+        "Dining", "Apple", "Apple Pay", "Apple & Rotating", "Physical Card", "Other"
+    ].sorted()
 
     private var total: Double { rows.reduce(0.0) { $0 + $1.amount } }
+
+    private var sortedRows: [StatementRow] {
+        switch sortMode {
+        case .newest:    return rows.sorted { $0.transactionDate > $1.transactionDate }
+        case .priceHigh: return rows.sorted { $0.amount > $1.amount }
+        case .priceLow:  return rows.sorted { $0.amount < $1.amount }
+        }
+    }
+
+    struct Pool: Identifiable {
+        let id = UUID()
+        let merchant: String
+        let total: Double
+        let count: Int
+        let latest: Date
+    }
+
+    private var pools: [Pool] {
+        var groups: [String: [StatementRow]] = [:]
+        for row in rows { groups[Self.normalizedMerchant(row.transactionDescription), default: []].append(row) }
+        var result = groups.values.map { rs -> Pool in
+            Pool(merchant: Self.displayMerchant(rs),
+                 total: rs.reduce(0) { $0 + $1.amount },
+                 count: rs.count,
+                 latest: rs.map { $0.transactionDate }.max() ?? .distantPast)
+        }
+        switch sortMode {
+        case .newest:    result.sort { $0.latest > $1.latest }
+        case .priceHigh: result.sort { $0.total > $1.total }
+        case .priceLow:  result.sort { $0.total < $1.total }
+        }
+        return result
+    }
 
     var body: some View {
         NavigationStack {
@@ -702,36 +759,118 @@ struct SpendingCategoryDetailSheet: View {
                     Text("\(rows.count) transaction\(rows.count == 1 ? "" : "s")")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    Toggle("Pool similar transactions", isOn: $poolSimilar)
+                        .font(.subheadline)
+                        .tint(Color.appCoral)
                 }
 
                 Section {
-                    ForEach(rows) { row in
-                        HStack(alignment: .firstTextBaseline) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(row.transactionDescription.isEmpty ? category : row.transactionDescription)
-                                    .font(.subheadline)
-                                    .lineLimit(2)
-                                Text(row.transactionDate, format: .dateTime.year().month().day())
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                    if poolSimilar {
+                        ForEach(pools) { pool in
+                            HStack(alignment: .firstTextBaseline) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(pool.merchant.isEmpty ? category : pool.merchant)
+                                        .font(.subheadline.weight(.medium))
+                                        .lineLimit(2)
+                                    Text("\(pool.count) transaction\(pool.count == 1 ? "" : "s")")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Text(pool.total, format: .currency(code: "USD"))
+                                    .font(.subheadline.weight(.semibold))
                             }
-                            Spacer()
-                            Text(row.amount, format: .currency(code: "USD"))
-                                .font(.subheadline.weight(.semibold))
+                            .padding(.vertical, 2)
                         }
-                        .padding(.vertical, 2)
+                    } else {
+                        ForEach(sortedRows) { row in
+                            Button {
+                                editingRow = row
+                            } label: {
+                                HStack(alignment: .firstTextBaseline) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(row.transactionDescription.isEmpty ? category : row.transactionDescription)
+                                            .font(.subheadline)
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(2)
+                                        Text(row.transactionDate, format: .dateTime.year().month().day())
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Text(row.amount, format: .currency(code: "USD"))
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.primary)
+                                    Image(systemName: "pencil")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
+                                .padding(.vertical, 2)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                } footer: {
+                    if !poolSimilar {
+                        Text("Tap a transaction to change its category.")
                     }
                 }
             }
             .navigationTitle(category)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu {
+                        Picker("Sort", selection: $sortMode) {
+                            ForEach(SortMode.allCases) { Text($0.rawValue).tag($0) }
+                        }
+                    } label: {
+                        Image(systemName: "arrow.up.arrow.down")
+                            .foregroundStyle(Color.appCoral)
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                         .foregroundStyle(Color.appCoral)
                 }
             }
+            .sheet(item: $editingRow) { row in
+                CategoryPickerSheet(
+                    transaction: row,
+                    availableCategories: Self.allCategories,
+                    onSelect: { newCategory in
+                        row.category = newCategory
+                        try? modelContext.save()
+                        // If it no longer belongs to this category view, drop it.
+                        let key = newCategory.isEmpty ? "Other" : newCategory
+                        if key != category {
+                            rows.removeAll { $0.id == row.id }
+                        }
+                        editingRow = nil
+                    },
+                    onDismiss: { editingRow = nil }
+                )
+            }
         }
+    }
+
+    /// Normalize a merchant so repeat purchases pool together (strip store/ref
+    /// numbers and punctuation).
+    private static func normalizedMerchant(_ description: String) -> String {
+        var t = description.lowercased()
+        t = t.replacingOccurrences(of: "#\\s*\\d+", with: " ", options: .regularExpression)
+        t = t.replacingOccurrences(of: "\\b\\d{3,}\\b", with: " ", options: .regularExpression)
+        t = t.replacingOccurrences(of: "[*#.,/\\\\-]", with: " ", options: .regularExpression)
+        t = t.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        return t.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// Most common raw description in a pooled group, for display.
+    private static func displayMerchant(_ rows: [StatementRow]) -> String {
+        var counts: [String: Int] = [:]
+        for r in rows { counts[r.transactionDescription, default: 0] += 1 }
+        return counts.max { $0.value < $1.value }?.key ?? (rows.first?.transactionDescription ?? "")
     }
 }
 

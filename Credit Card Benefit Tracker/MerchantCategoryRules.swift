@@ -25,6 +25,7 @@ enum MerchantCategoryRules {
     /// category regardless of card). Checked before issuer-specific rules.
     static let globalRules: [(keyword: String, category: String)] = [
         ("resy", "Restaurants"),          // Resy = restaurant reservations/dining
+        ("tst*", "Restaurants"),          // Toast ("TST* <restaurant>") = dining
         ("frys", "Supermarkets"),         // Fry's Food (Kroger grocery)
         ("fry's", "Supermarkets"),
     ]
