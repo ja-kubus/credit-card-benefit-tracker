@@ -25,6 +25,12 @@ struct SettingsView: View {
                     } label: {
                         Label("Notifications", systemImage: "bell.badge.fill")
                     }
+
+                    NavigationLink {
+                        LinkedAccountsView()
+                    } label: {
+                        Label("Linked Accounts (Beta)", systemImage: "link")
+                    }
                 }
 
                 Section("Notifications") {

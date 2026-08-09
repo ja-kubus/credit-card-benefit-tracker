@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Secrets — NEVER commit these
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+certs/
+teller.zip
+
+# Datastore (contains encrypted tokens — do not commit)
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+data/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
