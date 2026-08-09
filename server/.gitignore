@@ -13,9 +13,8 @@ dist/
 *.crt
 *.p12
 certs/
-teller.zip
 
-# Datastore (contains encrypted tokens — do not commit)
+# Datastore (Apple->Stripe id mappings; still keep out of version control)
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal

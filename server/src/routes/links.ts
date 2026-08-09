@@ -1,118 +1,167 @@
 import { Router, type Response } from 'express';
-import crypto from 'node:crypto';
 import { z } from 'zod';
 import { requireAuth, type AuthedRequest } from '../middleware/auth';
-import { encryptToken } from '../crypto';
-import { insertLink, getLinksForUser, deleteLink } from '../db';
-import { decryptToken } from '../crypto';
-import { listAccounts, TellerError } from '../teller';
+import {
+  upsertUser,
+  getUser,
+  setCustomerId,
+  upsertAccount,
+  getAccountsForUser,
+  deleteAccount,
+  userOwnsAccount,
+} from '../db';
+import {
+  getOrCreateCustomer,
+  createLinkSession,
+  retrieveSessionAccounts,
+  subscribeAccount,
+  listCustomerAccounts,
+  disconnectAccount,
+  StripeClientError,
+} from '../stripe';
 import { logger } from '../logger';
 
 /**
- * Link management + account listing.
+ * Account linking via Stripe Financial Connections.
  *
- *  POST   /link      { accessToken, enrollmentId, institution }
- *  GET    /accounts
- *  POST   /unlink    { linkId }
+ *  POST   /link/session            -> { clientSecret, sessionId }
+ *  POST   /link/complete  { sessionId } -> { accounts }
+ *  GET    /accounts                -> { accounts }
+ *  POST   /unlink        { accountId }  -> { ok }
  *
- * All routes require a valid session (requireAuth). Access tokens are
- * encrypted immediately and never logged.
+ * All routes require a valid session (requireAuth). No provider secrets pass
+ * through here; the client only ever receives a Stripe Session client_secret,
+ * which is scoped to a single linking attempt.
  */
 export const linksRouter = Router();
 linksRouter.use(requireAuth);
 
-const linkSchema = z.object({
-  accessToken: z.string().min(1),
-  enrollmentId: z.string().min(1).optional(),
-  institution: z.string().min(1).optional(),
+/** Resolve (creating if needed) the Stripe customer id for this app user. */
+async function ensureCustomerId(userId: string): Promise<string> {
+  upsertUser(userId);
+  const existing = getUser(userId)?.stripeCustomerId ?? null;
+  const customerId = await getOrCreateCustomer(existing);
+  if (customerId !== existing) {
+    setCustomerId(userId, customerId);
+  }
+  return customerId;
+}
+
+function handleError(res: Response, context: string, err: unknown): void {
+  if (err instanceof StripeClientError) {
+    logger.warn(`stripe error: ${context}`, { status: err.status });
+    res.status(502).json({ error: 'upstream_error' });
+    return;
+  }
+  logger.error(`${context} failed`, {
+    reason: err instanceof Error ? err.message : 'unknown',
+  });
+  res.status(500).json({ error: 'internal_error' });
+}
+
+// POST /link/session — create a Financial Connections Session for the SDK.
+linksRouter.post('/link/session', async (req: AuthedRequest, res: Response) => {
+  const userId = req.userId!;
+  try {
+    const customerId = await ensureCustomerId(userId);
+    const session = await createLinkSession(customerId);
+    // The client_secret is scoped to this one linking attempt; safe to hand to
+    // the app for the Stripe SDK. Never log it.
+    res.json({ clientSecret: session.clientSecret, sessionId: session.id });
+  } catch (err) {
+    handleError(res, 'link/session', err);
+  }
 });
 
-// POST /link
-linksRouter.post('/link', async (req: AuthedRequest, res: Response) => {
+// POST /link/complete — after the user finishes Stripe's sheet, read the linked
+// accounts, persist them, and subscribe each to daily transaction refreshes.
+const completeSchema = z.object({ sessionId: z.string().min(1) });
+
+linksRouter.post('/link/complete', async (req: AuthedRequest, res: Response) => {
   const userId = req.userId!;
-  const parsed = linkSchema.safeParse(req.body);
+  const parsed = completeSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'invalid_request' });
     return;
   }
-  const { accessToken, enrollmentId, institution } = parsed.data;
-
-  const linkId = crypto.randomUUID();
 
   try {
-    // 1. Encrypt and persist the token FIRST (so we never keep plaintext around
-    //    longer than needed). token is encrypted at rest via AES-256-GCM.
-    const encrypted = encryptToken(accessToken);
-    insertLink({
-      id: linkId,
-      userId,
-      institution: institution ?? null,
-      enrollmentId: enrollmentId ?? null,
-      token: encrypted,
-    });
+    const accounts = await retrieveSessionAccounts(parsed.data.sessionId);
 
-    // 2. Verify the link works by fetching accounts via Teller (mTLS).
-    const accounts = await listAccounts(accessToken);
-
-    res.json({ linkId, accounts });
-  } catch (err) {
-    if (err instanceof TellerError) {
-      logger.warn('teller /accounts failed on link', { status: err.status });
-      res.status(502).json({ error: 'upstream_error' });
-      return;
+    for (const a of accounts) {
+      upsertAccount({
+        id: a.id,
+        userId,
+        institution: a.institution || null,
+        displayName: a.displayName || null,
+        last4: a.last4 || null,
+      });
+      // Enable transactions + kick off the first refresh. Non-fatal per account.
+      try {
+        await subscribeAccount(a.id);
+      } catch (err) {
+        logger.warn('subscribe failed for account', {
+          reason: err instanceof Error ? err.message : 'unknown',
+        });
+      }
     }
-    logger.error('link failed', {
-      reason: err instanceof Error ? err.message : 'unknown',
-    });
-    res.status(500).json({ error: 'internal_error' });
+
+    res.json({ accounts });
+  } catch (err) {
+    handleError(res, 'link/complete', err);
   }
 });
 
-// GET /accounts — fresh /accounts call per link, metadata only, no tokens.
+// GET /accounts — the accounts currently linked to this user (metadata only).
 linksRouter.get('/accounts', async (req: AuthedRequest, res: Response) => {
   const userId = req.userId!;
-  const links = getLinksForUser(userId);
-
   try {
-    const results = await Promise.all(
-      links.map(async (link) => {
-        const token = decryptToken(link.token);
-        const accounts = await listAccounts(token);
-        return accounts.map((a) => ({
-          ...a,
-          linkId: link.id,
-          institution: link.institution,
-        }));
-      }),
-    );
-    res.json({ accounts: results.flat() });
-  } catch (err) {
-    if (err instanceof TellerError) {
-      logger.warn('teller /accounts failed', { status: err.status });
-      res.status(502).json({ error: 'upstream_error' });
+    const user = getUser(userId);
+    if (!user?.stripeCustomerId) {
+      res.json({ accounts: [] });
       return;
     }
-    logger.error('get accounts failed', {
-      reason: err instanceof Error ? err.message : 'unknown',
-    });
-    res.status(500).json({ error: 'internal_error' });
+    const accounts = await listCustomerAccounts(user.stripeCustomerId);
+    // Keep our local mirror fresh so /transactions and /unlink stay consistent.
+    for (const a of accounts) {
+      upsertAccount({
+        id: a.id,
+        userId,
+        institution: a.institution || null,
+        displayName: a.displayName || null,
+        last4: a.last4 || null,
+      });
+    }
+    res.json({ accounts });
+  } catch (err) {
+    handleError(res, 'accounts', err);
   }
 });
 
-// POST /unlink — delete a link (and its token) if it belongs to the user.
-const unlinkSchema = z.object({ linkId: z.string().min(1) });
+// POST /unlink — disconnect an account if it belongs to the user.
+const unlinkSchema = z.object({ accountId: z.string().min(1) });
 
-linksRouter.post('/unlink', (req: AuthedRequest, res: Response) => {
+linksRouter.post('/unlink', async (req: AuthedRequest, res: Response) => {
   const userId = req.userId!;
   const parsed = unlinkSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'invalid_request' });
     return;
   }
-  const deleted = deleteLink(parsed.data.linkId, userId);
-  if (!deleted) {
+  const { accountId } = parsed.data;
+
+  // Authorize against our own records BEFORE calling Stripe, so a user can only
+  // ever disconnect their own accounts.
+  if (!userOwnsAccount(accountId, userId)) {
     res.status(404).json({ error: 'not_found' });
     return;
   }
-  res.json({ ok: true });
+
+  try {
+    await disconnectAccount(accountId);
+    deleteAccount(accountId, userId);
+    res.json({ ok: true });
+  } catch (err) {
+    handleError(res, 'unlink', err);
+  }
 });

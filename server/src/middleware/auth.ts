@@ -21,7 +21,7 @@ export function signSession(userId: string): string {
   return jwt.sign({}, config.sessionSecret, {
     subject: userId,
     expiresIn: config.sessionExpiry,
-    issuer: 'teller-backend',
+    issuer: config.sessionIssuer,
   });
 }
 
@@ -39,7 +39,7 @@ export function requireAuth(
 
   try {
     const decoded = jwt.verify(match[1], config.sessionSecret, {
-      issuer: 'teller-backend',
+      issuer: config.sessionIssuer,
     }) as unknown as SessionClaims;
     if (!decoded.sub) {
       res.status(401).json({ error: 'unauthorized' });

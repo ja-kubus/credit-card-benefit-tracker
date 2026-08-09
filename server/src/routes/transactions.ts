@@ -1,23 +1,21 @@
 import { Router, type Response } from 'express';
 import { z } from 'zod';
 import { requireAuth, type AuthedRequest } from '../middleware/auth';
-import { decryptToken } from '../crypto';
-import { getLinksForUser } from '../db';
+import { getAccountsForUser } from '../db';
 import {
-  listAccounts,
   listTransactions,
-  normalizeTransaction,
-  TellerError,
+  StripeClientError,
   type NormalizedTransaction,
-} from '../teller';
+} from '../stripe';
 import { logger } from '../logger';
 
 /**
  * GET /transactions?since=YYYY-MM-DD
  *
- * For each link: decrypt token, list accounts, list transactions per account,
- * filter by `since`, normalize to the app's shape. Transactions are NEVER
- * persisted here — they are returned to the app for on-device storage only.
+ * For each of the user's linked accounts, list transactions from Stripe,
+ * optionally filtered to on/after `since`, normalized to the app's shape.
+ * Transactions are NEVER persisted here — they are returned to the app for
+ * on-device storage only.
  */
 export const transactionsRouter = Router();
 transactionsRouter.use(requireAuth);
@@ -38,21 +36,17 @@ transactionsRouter.get('/transactions', async (req: AuthedRequest, res: Response
   }
   const since = parsed.data.since;
 
-  const links = getLinksForUser(userId);
+  const accounts = getAccountsForUser(userId);
 
   try {
     const all: NormalizedTransaction[] = [];
 
-    for (const link of links) {
-      const token = decryptToken(link.token);
-      const accounts = await listAccounts(token);
-
-      for (const account of accounts) {
-        const raw = await listTransactions(token, account.id);
-        for (const t of raw) {
-          if (since && t.date < since) continue; // lexical compare is valid for YYYY-MM-DD
-          all.push(normalizeTransaction(t, account.name));
-        }
+    for (const account of accounts) {
+      const name = account.displayName || account.institution || 'Account';
+      const raw = await listTransactions(account.id, name);
+      for (const t of raw) {
+        if (since && t.date && t.date < since) continue; // lexical compare valid for YYYY-MM-DD
+        all.push(t);
       }
     }
 
@@ -61,8 +55,8 @@ transactionsRouter.get('/transactions', async (req: AuthedRequest, res: Response
 
     res.json({ transactions: all });
   } catch (err) {
-    if (err instanceof TellerError) {
-      logger.warn('teller transactions failed', { status: err.status });
+    if (err instanceof StripeClientError) {
+      logger.warn('stripe transactions failed', { status: err.status });
       res.status(502).json({ error: 'upstream_error' });
       return;
     }

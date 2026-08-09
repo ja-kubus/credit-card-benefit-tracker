@@ -1,7 +1,7 @@
 {
-  "name": "teller-backend",
+  "name": "linking-backend",
   "version": "1.0.0",
-  "description": "Security-first Teller (teller.io) integration backend. Sole holder of the mTLS client cert and per-user access tokens (encrypted at rest). The iOS app never holds secrets.",
+  "description": "Security-first Stripe Financial Connections backend. Sole holder of the Stripe secret key; no per-user secrets stored. The iOS app never holds secrets and stores transactions on-device only.",
   "type": "commonjs",
   "main": "dist/index.js",
   "engines": {
@@ -22,6 +22,7 @@
     "helmet": "^8.0.0",
     "jose": "^5.9.6",
     "jsonwebtoken": "^9.0.2",
+    "stripe": "^17.7.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {

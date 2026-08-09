@@ -1,10 +1,10 @@
 //
-//  TellerBackendClient.swift
+//  LinkBackendClient.swift
 //  Credit Card Benefit Tracker
 //
-//  Talks to YOUR backend, which holds the Teller access tokens and performs all
+//  Talks to YOUR backend, which holds the Stripe secret key and performs all
 //  sensitive operations. This app only ever holds a backend SESSION token
-//  (stored in the Keychain), never a Teller access token or bank credentials.
+//  (stored in the Keychain) — never a Stripe secret, never bank credentials.
 //
 
 import Foundation
@@ -13,12 +13,31 @@ import Security
 // MARK: - Models
 
 struct LinkedAccount: Codable, Identifiable, Hashable {
-    var linkId: String?
-    var id: String
-    var name: String
-    var lastFour: String
-    var type: String
+    var id: String            // Stripe Financial Connections account id (fca_...)
+    var name: String          // display name (from `displayName`)
     var institution: String
+    var lastFour: String      // from `last4`
+    var category: String      // e.g. "credit"
+    var subcategory: String   // e.g. "credit_card"
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name = "displayName"
+        case institution
+        case lastFour = "last4"
+        case category
+        case subcategory
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = (try? c.decode(String.self, forKey: .name)) ?? ""
+        institution = (try? c.decode(String.self, forKey: .institution)) ?? ""
+        lastFour = (try? c.decode(String.self, forKey: .lastFour)) ?? ""
+        category = (try? c.decode(String.self, forKey: .category)) ?? ""
+        subcategory = (try? c.decode(String.self, forKey: .subcategory)) ?? ""
+    }
 }
 
 struct RemoteTransaction: Codable, Identifiable, Hashable {
@@ -28,10 +47,11 @@ struct RemoteTransaction: Codable, Identifiable, Hashable {
     var date: Date
     var description: String
     var amount: Double
+    var status: String
     var category: String
 
     enum CodingKeys: String, CodingKey {
-        case id, accountId, accountName, date, description, amount, category
+        case id, accountId, accountName, date, description, amount, status, category
     }
 
     init(from decoder: Decoder) throws {
@@ -40,6 +60,7 @@ struct RemoteTransaction: Codable, Identifiable, Hashable {
         accountId = try c.decode(String.self, forKey: .accountId)
         accountName = (try? c.decode(String.self, forKey: .accountName)) ?? ""
         description = (try? c.decode(String.self, forKey: .description)) ?? ""
+        status = (try? c.decode(String.self, forKey: .status)) ?? ""
         category = (try? c.decode(String.self, forKey: .category)) ?? ""
 
         // amount may arrive as a Double or a String like "12.34"
@@ -66,18 +87,29 @@ struct RemoteTransaction: Codable, Identifiable, Hashable {
     }()
 }
 
+// MARK: - Response envelopes (backend wraps payloads in an object)
+
+private struct SessionResponse: Decodable {
+    let clientSecret: String
+    let sessionId: String
+}
+private struct AccountsResponse: Decodable { let accounts: [LinkedAccount] }
+private struct TransactionsResponse: Decodable { let transactions: [RemoteTransaction] }
+
 // MARK: - Errors
 
-enum TellerBackendError: LocalizedError {
+enum LinkBackendError: LocalizedError {
     case notAuthenticated
     case badResponse(status: Int)
     case missingToken
+    case missingField
 
     var errorDescription: String? {
         switch self {
         case .notAuthenticated: return "You are not signed in."
         case .badResponse(let status): return "Server error (HTTP \(status))."
         case .missingToken: return "Could not read the sign-in token."
+        case .missingField: return "The server returned an unexpected response."
         }
     }
 }
@@ -85,7 +117,7 @@ enum TellerBackendError: LocalizedError {
 // MARK: - Keychain helper
 
 enum KeychainHelper {
-    private static let service = "com.creditcardbenefittracker.teller"
+    private static let service = "com.creditcardbenefittracker.linking"
 
     static func set(_ value: String, for key: String) {
         let data = Data(value.utf8)
@@ -126,11 +158,11 @@ enum KeychainHelper {
 
 // MARK: - Backend client
 
-actor TellerBackendClient {
-    static let shared = TellerBackendClient()
+actor LinkBackendClient {
+    static let shared = LinkBackendClient()
 
     private let sessionKey = "backend_session_token"
-    private let baseURL = TellerConfig.backendBaseURL
+    private let baseURL = StripeLinkConfig.backendBaseURL
 
     nonisolated var isSignedIn: Bool {
         KeychainHelper.get("backend_session_token") != nil
@@ -151,7 +183,7 @@ actor TellerBackendClient {
 
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         guard let token = json?["sessionToken"] as? String else {
-            throw TellerBackendError.missingToken
+            throw LinkBackendError.missingToken
         }
         KeychainHelper.set(token, for: sessionKey)
     }
@@ -162,18 +194,24 @@ actor TellerBackendClient {
 
     // MARK: Linking
 
-    /// POST /link — sends the transient Teller access token to the backend so it
-    /// can store it and return the accounts it unlocked.
-    func link(accessToken: String, enrollmentId: String, institution: String) async throws -> [LinkedAccount] {
-        let body: [String: Any] = [
-            "accessToken": accessToken,
-            "enrollmentId": enrollmentId,
-            "institution": institution
-        ]
-        let request = try authorizedRequest(path: "link", method: "POST", jsonBody: body)
+    /// POST /link/session — asks the backend to create a Stripe Financial
+    /// Connections session. Returns the client_secret to hand to the Stripe SDK
+    /// and the session id to confirm with afterwards.
+    func createLinkSession() async throws -> (clientSecret: String, sessionId: String) {
+        let request = try authorizedRequest(path: "link/session", method: "POST", jsonBody: [:])
         let (data, response) = try await URLSession.shared.data(for: request)
         try Self.validate(response)
-        return try Self.decoder.decode([LinkedAccount].self, from: data)
+        let decoded = try Self.decoder.decode(SessionResponse.self, from: data)
+        return (decoded.clientSecret, decoded.sessionId)
+    }
+
+    /// POST /link/complete — after the Stripe sheet finishes, tell the backend to
+    /// read the linked accounts and subscribe them to transaction refreshes.
+    func completeLink(sessionId: String) async throws -> [LinkedAccount] {
+        let request = try authorizedRequest(path: "link/complete", method: "POST", jsonBody: ["sessionId": sessionId])
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try Self.validate(response)
+        return try Self.decoder.decode(AccountsResponse.self, from: data).accounts
     }
 
     /// GET /accounts — the currently linked accounts.
@@ -181,7 +219,7 @@ actor TellerBackendClient {
         let request = try authorizedRequest(path: "accounts", method: "GET")
         let (data, response) = try await URLSession.shared.data(for: request)
         try Self.validate(response)
-        return try Self.decoder.decode([LinkedAccount].self, from: data)
+        return try Self.decoder.decode(AccountsResponse.self, from: data).accounts
     }
 
     /// GET /transactions?since=YYYY-MM-DD
@@ -199,12 +237,12 @@ actor TellerBackendClient {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         try Self.validate(response)
-        return try Self.decoder.decode([RemoteTransaction].self, from: data)
+        return try Self.decoder.decode(TransactionsResponse.self, from: data).transactions
     }
 
-    /// POST /unlink
-    func unlink(linkId: String) async throws {
-        let request = try authorizedRequest(path: "unlink", method: "POST", jsonBody: ["linkId": linkId])
+    /// POST /unlink — disconnect an account by its Stripe FC account id.
+    func unlink(accountId: String) async throws {
+        let request = try authorizedRequest(path: "unlink", method: "POST", jsonBody: ["accountId": accountId])
         let (_, response) = try await URLSession.shared.data(for: request)
         try Self.validate(response)
     }
@@ -224,7 +262,7 @@ actor TellerBackendClient {
 
     private func attachAuth(_ request: inout URLRequest) throws {
         guard let token = KeychainHelper.get(sessionKey) else {
-            throw TellerBackendError.notAuthenticated
+            throw LinkBackendError.notAuthenticated
         }
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     }
@@ -232,7 +270,7 @@ actor TellerBackendClient {
     private static func validate(_ response: URLResponse) throws {
         guard let http = response as? HTTPURLResponse else { return }
         guard (200..<300).contains(http.statusCode) else {
-            throw TellerBackendError.badResponse(status: http.statusCode)
+            throw LinkBackendError.badResponse(status: http.statusCode)
         }
     }
 

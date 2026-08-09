@@ -61,7 +61,7 @@ app.get('/health', (_req: Request, res: Response) => {
 
 // Routes.
 app.use('/auth', authLimiter, authRouter);
-app.use('/', linksRouter); // /link, /accounts, /unlink
+app.use('/', linksRouter); // /link/session, /link/complete, /accounts, /unlink
 app.use('/', transactionsRouter); // /transactions
 
 // 404.

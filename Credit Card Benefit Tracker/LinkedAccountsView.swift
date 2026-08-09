@@ -3,13 +3,14 @@
 //  Credit Card Benefit Tracker
 //
 //  Beta account-linking UI. The user signs in with Apple, then connects a card
-//  through Teller Connect. Bank credentials are entered ONLY on the bank's page
-//  inside Teller — this app never sees them. Imported transactions are stored on
-//  the device as Statements/StatementRows.
+//  through Stripe Financial Connections. Bank credentials are entered ONLY on
+//  the bank's page inside Stripe's sheet — this app never sees them. Imported
+//  transactions are stored on the device as Statements/StatementRows.
 //
 //  NOTE: "Sign in with Apple" requires enabling the capability in Xcode →
-//  Signing & Capabilities before it works at runtime. The code compiles without
-//  the entitlement, but the button will fail at runtime until it is enabled.
+//  Signing & Capabilities before it works at runtime. Account linking requires
+//  the Stripe SDK package (github.com/stripe/stripe-ios →
+//  StripeFinancialConnections) added to the app target.
 //
 
 import SwiftUI
@@ -19,9 +20,8 @@ import AuthenticationServices
 struct LinkedAccountsView: View {
     @Environment(\.modelContext) private var modelContext
 
-    @State private var isSignedIn = TellerBackendClient.shared.isSignedIn
+    @State private var isSignedIn = LinkBackendClient.shared.isSignedIn
     @State private var accounts: [LinkedAccount] = []
-    @State private var showConnectSheet = false
     @State private var isBusy = false
     @State private var statusMessage: String?
     @State private var errorMessage: String?
@@ -61,18 +61,6 @@ struct LinkedAccountsView: View {
                     .background(.ultraThinMaterial)
             }
         }
-        .sheet(isPresented: $showConnectSheet) {
-            TellerConnectView(
-                onSuccess: { accessToken, enrollmentId, institution in
-                    showConnectSheet = false
-                    handleLink(accessToken: accessToken, enrollmentId: enrollmentId, institution: institution)
-                },
-                onExit: {
-                    showConnectSheet = false
-                }
-            )
-            .ignoresSafeArea()
-        }
         .task {
             if isSignedIn { await loadAccounts() }
         }
@@ -86,7 +74,7 @@ struct LinkedAccountsView: View {
                 Label("Your privacy", systemImage: "lock.shield.fill")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.appCoral)
-                Text("Securely connect a card to import transactions automatically. Your bank login is entered only on your bank's page via Teller — this app never sees your credentials. Imported transactions are stored on your device.")
+                Text("Securely connect a card to import transactions automatically. Your bank login is entered only on your bank's page via Stripe — this app never sees your credentials. Imported transactions are stored on your device.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -113,9 +101,7 @@ struct LinkedAccountsView: View {
     private var connectSection: some View {
         Section {
             Button {
-                errorMessage = nil
-                statusMessage = nil
-                showConnectSheet = true
+                Task { await connect() }
             } label: {
                 Label("Connect a Card", systemImage: "creditcard.fill")
                     .foregroundStyle(Color.appCoral)
@@ -138,8 +124,9 @@ struct LinkedAccountsView: View {
                 ForEach(accounts) { account in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(account.name).font(.subheadline.weight(.semibold))
-                            Text("\(account.institution) •••• \(account.lastFour)")
+                            Text(account.name.isEmpty ? account.institution : account.name)
+                                .font(.subheadline.weight(.semibold))
+                            Text(accountSubtitle(account))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -155,6 +142,13 @@ struct LinkedAccountsView: View {
                 }
             }
         }
+    }
+
+    private func accountSubtitle(_ account: LinkedAccount) -> String {
+        var parts: [String] = []
+        if !account.institution.isEmpty { parts.append(account.institution) }
+        if !account.lastFour.isEmpty { parts.append("•••• \(account.lastFour)") }
+        return parts.joined(separator: " ")
     }
 
     // MARK: - Actions
@@ -174,7 +168,7 @@ struct LinkedAccountsView: View {
                 isBusy = true
                 defer { isBusy = false }
                 do {
-                    try await TellerBackendClient.shared.authenticateWithApple(identityToken: token)
+                    try await LinkBackendClient.shared.authenticateWithApple(identityToken: token)
                     isSignedIn = true
                     await loadAccounts()
                 } catch {
@@ -184,29 +178,45 @@ struct LinkedAccountsView: View {
         }
     }
 
-    private func handleLink(accessToken: String, enrollmentId: String, institution: String) {
-        Task {
+    /// Full connect flow: create a Stripe session, present the sheet, then
+    /// confirm with the backend and sync.
+    private func connect() async {
+        errorMessage = nil
+        statusMessage = nil
+        do {
+            // 1. Ask the backend for a Financial Connections session.
+            isBusy = true
+            let session = try await LinkBackendClient.shared.createLinkSession()
+            isBusy = false
+
+            // 2. Present Stripe's sheet (bank login happens entirely inside it).
+            let outcome = await StripeConnect.present(clientSecret: session.clientSecret)
+
+            switch outcome {
+            case .canceled:
+                return
+            case .failed(let message):
+                errorMessage = message
+                return
+            case .completed:
+                break
+            }
+
+            // 3. Confirm the link server-side and pull transactions.
             isBusy = true
             defer { isBusy = false }
-            do {
-                // The accessToken is transient — sent to the backend, never stored here.
-                let linked = try await TellerBackendClient.shared.link(
-                    accessToken: accessToken,
-                    enrollmentId: enrollmentId,
-                    institution: institution
-                )
-                accounts = linked
-                let count = try await TellerSyncService.sync(modelContext: modelContext)
-                statusMessage = "Linked \(institution). Imported \(count) new transactions."
-            } catch {
-                errorMessage = error.localizedDescription
-            }
+            accounts = try await LinkBackendClient.shared.completeLink(sessionId: session.sessionId)
+            let count = try await LinkSyncService.sync(modelContext: modelContext)
+            statusMessage = "Connected. Imported \(count) new transactions."
+        } catch {
+            isBusy = false
+            errorMessage = error.localizedDescription
         }
     }
 
     private func loadAccounts() async {
         do {
-            accounts = try await TellerBackendClient.shared.accounts()
+            accounts = try await LinkBackendClient.shared.accounts()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -217,7 +227,7 @@ struct LinkedAccountsView: View {
         defer { isBusy = false }
         errorMessage = nil
         do {
-            let count = try await TellerSyncService.sync(modelContext: modelContext)
+            let count = try await LinkSyncService.sync(modelContext: modelContext)
             statusMessage = "Imported \(count) new transactions."
         } catch {
             errorMessage = error.localizedDescription
@@ -225,13 +235,12 @@ struct LinkedAccountsView: View {
     }
 
     private func disconnect(_ account: LinkedAccount) async {
-        let linkId = account.linkId ?? account.id
         isBusy = true
         defer { isBusy = false }
         do {
-            try await TellerBackendClient.shared.unlink(linkId: linkId)
+            try await LinkBackendClient.shared.unlink(accountId: account.id)
             accounts.removeAll { $0.id == account.id }
-            statusMessage = "Disconnected \(account.name)."
+            statusMessage = "Disconnected \(account.name.isEmpty ? account.institution : account.name)."
         } catch {
             errorMessage = error.localizedDescription
         }

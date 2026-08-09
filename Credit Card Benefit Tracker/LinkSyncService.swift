@@ -1,5 +1,5 @@
 //
-//  TellerSyncService.swift
+//  LinkSyncService.swift
 //  Credit Card Benefit Tracker
 //
 //  Pulls linked transactions from the backend and inserts them into SwiftData as
@@ -10,7 +10,7 @@
 import Foundation
 import SwiftData
 
-enum TellerSyncService {
+enum LinkSyncService {
     /// Fetch transactions and merge them into SwiftData.
     /// - Parameters:
     ///   - since: earliest transaction date to import (default: one year ago).
@@ -20,7 +20,7 @@ enum TellerSyncService {
     @MainActor
     static func sync(since: Date? = nil, modelContext: ModelContext) async throws -> Int {
         let sinceDate = since ?? Calendar.current.date(byAdding: .year, value: -1, to: Date()) ?? Date()
-        let transactions = try await TellerBackendClient.shared.transactions(since: sinceDate)
+        let transactions = try await LinkBackendClient.shared.transactions(since: sinceDate)
         return merge(transactions: transactions, modelContext: modelContext)
     }
 
@@ -28,6 +28,11 @@ enum TellerSyncService {
     @MainActor
     static func merge(transactions: [RemoteTransaction], modelContext: ModelContext) -> Int {
         guard !transactions.isEmpty else { return 0 }
+
+        // Skip pending transactions — they can change amount/description before
+        // posting and would create dedupe churn. Import posted only.
+        let posted = transactions.filter { $0.status.isEmpty || $0.status == "posted" }
+        guard !posted.isEmpty else { return 0 }
 
         // Existing rows (for dedupe) and user cards (to attach statements by issuer).
         let existingRows = (try? modelContext.fetch(FetchDescriptor<StatementRow>())) ?? []
@@ -43,12 +48,12 @@ enum TellerSyncService {
         }
 
         // Group by account.
-        let grouped = Dictionary(grouping: transactions, by: { $0.accountId })
+        let grouped = Dictionary(grouping: posted, by: { $0.accountId })
         var inserted = 0
 
         for (accountId, txns) in grouped {
             let accountName = txns.first?.accountName ?? "Account"
-            let institution = txns.first(where: { !$0.category.isEmpty })?.accountName ?? accountName
+            let institution = accountName
             let statementFileName = "Linked · \(accountName)"
 
             // Find-or-create one Statement per linked account.
