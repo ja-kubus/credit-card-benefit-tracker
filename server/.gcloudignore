@@ -1,0 +1,21 @@
+# Files NOT uploaded to Cloud Build when deploying with `gcloud run deploy --source .`
+# (The Dockerfile rebuilds node_modules and dist inside the image.)
+
+node_modules/
+dist/
+data/
+
+# Secrets — never upload
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+certs/
+
+# Misc
+*.log
+.DS_Store
+.git/

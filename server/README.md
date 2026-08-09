@@ -174,6 +174,12 @@ docker run --rm -p 8080:8080 \
 
 (No volume needed — the service is stateless.)
 
+### Deploy to production
+
+See **[DEPLOY.md](DEPLOY.md)** for a step-by-step Google Cloud Run deploy
+(scale-to-zero, secrets in Google Secret Manager, no code changes). Any host
+that can run the Dockerfile works — the service holds no state.
+
 ---
 
 ## Security / trust model
