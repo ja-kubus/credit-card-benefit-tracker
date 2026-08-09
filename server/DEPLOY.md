@@ -110,6 +110,30 @@ static let backendBaseURL = URL(string: "https://YOUR-SERVICE-URL")!
 
 ---
 
+## Troubleshooting
+
+### `gcloud crashed (ValueError): ZIP does not support timestamps before 1980`
+
+This is a bug in gcloud's **bundled Python 3.14** (used by SDK ~579), not your
+files: when `--source` zips the upload, gcloud stamps a synthetic entry with
+epoch 0 (1970), and Python 3.14's `zipfile` rejects any timestamp before 1980
+(older Pythons tolerated it). It is unrelated to your actual file timestamps.
+
+Fix: run gcloud under an older Python (3.11 or 3.12). Install one if needed
+(`brew install python@3.11`), then point gcloud at it for the deploy:
+
+```bash
+export CLOUDSDK_PYTHON="$(command -v python3.11)"
+gcloud run deploy linking-backend --source . --region us-central1 ...   # same command as above
+```
+
+The `export` lasts for the current terminal session. To make it permanent, add
+that line to `~/.zshrc`. Verify which interpreter gcloud uses with:
+
+```bash
+gcloud info | grep -i "python version"
+```
+
 ## Redeploying
 
 Just run the same `gcloud run deploy … --source .` command again. To change a
