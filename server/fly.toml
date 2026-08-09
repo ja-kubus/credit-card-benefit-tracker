@@ -1,0 +1,45 @@
+# Fly.io configuration for the linking backend.
+#
+# IMPORTANT (SQLite): a Fly volume is attached to exactly ONE machine, and this
+# app stores its SQLite file on that volume. Do NOT scale to more than one
+# machine — multiple machines would each get a SEPARATE volume + database and
+# your data would silently split. Keep the count at 1.
+#
+# Change `app` to your chosen unique name (or let `fly launch` set it), then set
+# your primary region below.
+
+app = "credit-card-benefit-backend"        # <-- change to your unique app name
+primary_region = "iad"                      # <-- e.g. iad (US East), sea, lhr...
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+  # SQLite file lives on the mounted volume (see [mounts]).
+  DATABASE_PATH = "/app/data/app.sqlite"
+
+# Persistent disk for the SQLite database. The volume is created separately
+# (see the deploy steps) and mounted here.
+[mounts]
+  source = "data"
+  destination = "/app/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Idle the single machine when there's no traffic; it wakes on the next
+  # request. Safe with one machine + one volume.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 200
+    hard_limit = 250
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
