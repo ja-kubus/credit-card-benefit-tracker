@@ -2,11 +2,6 @@
 FROM node:20-slim AS build
 WORKDIR /app
 
-# better-sqlite3 compiles a native addon — needs build toolchain + python.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ \
- && rm -rf /var/lib/apt/lists/*
-
 COPY package.json package-lock.json* ./
 RUN npm install
 
@@ -27,8 +22,6 @@ COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=build --chown=node:node /app/package.json ./package.json
 
-# Data dir for the SQLite file (mount a volume here in production).
-RUN mkdir -p /app/data && chown node:node /app/data
 USER node
 
 EXPOSE 8080

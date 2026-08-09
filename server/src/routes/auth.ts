@@ -1,13 +1,15 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { verifyAppleIdentityToken } from '../apple';
-import { upsertUser } from '../db';
 import { signSession } from '../middleware/auth';
 import { logger } from '../logger';
 
 /**
  * POST /auth/apple
- *   { identityToken } -> verify with Apple -> upsert user -> { sessionToken }
+ *   { identityToken } -> verify with Apple -> { sessionToken }
+ *
+ * Stateless: no user record is created here. A user's Stripe Customer is created
+ * lazily on first link (keyed by the Apple `sub` in customer metadata).
  */
 export const authRouter = Router();
 
@@ -24,7 +26,6 @@ authRouter.post('/apple', async (req: Request, res: Response) => {
 
   try {
     const { sub } = await verifyAppleIdentityToken(parsed.data.identityToken);
-    upsertUser(sub);
     const sessionToken = signSession(sub);
     res.json({ sessionToken });
   } catch (err) {

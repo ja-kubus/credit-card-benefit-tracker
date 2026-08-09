@@ -6,9 +6,13 @@ Connections](https://docs.stripe.com/financial-connections) integration.
 This service is the **only** place a provider secret lives — the Stripe
 **secret key** (`sk_...`), held in env and never on the device. There are **no
 per-user access tokens and no mTLS certificate** (unlike a Teller design):
-Stripe FC authenticates every call with the one server-side secret key, so the
-database holds nothing sensitive — only a non-secret Apple-user → Stripe-customer
-mapping and the linked account ids.
+Stripe FC authenticates every call with the one server-side secret key.
+
+**It is fully stateless — there is no database.** The one durable fact (which
+Stripe Customer belongs to which app user) is stored *inside Stripe* as customer
+metadata (`metadata.app_user = <Apple sub>`) and looked up with customer search.
+Linked accounts and transactions are read from Stripe on demand. Nothing is
+persisted locally, so there is no disk state to secure, back up, or scale around.
 
 The iOS app authenticates with Sign in with Apple, receives a short-lived
 session JWT, and asks this server for account and transaction data. The user
@@ -53,7 +57,6 @@ server/
     ├── index.ts          # express app: helmet, cors, rate-limit, routes
     ├── config.ts         # loads + validates all env (fails fast)
     ├── logger.ts         # structured logging with secret redaction
-    ├── db.ts             # better-sqlite3: users + accounts (no txn table)
     ├── apple.ts          # Sign in with Apple identity-token verification
     ├── stripe.ts         # Stripe Financial Connections client + normalization
     ├── middleware/
@@ -135,7 +138,6 @@ Copy `.env.example` to `.env` and fill in:
 | `APPLE_CLIENT_ID` | **yes** | Your app bundle id / Services ID (the token `aud`) |
 | `STRIPE_SECRET_KEY` | **yes** | Stripe **secret** key (`sk_test_` / `sk_live_`) |
 | `STRIPE_WEBHOOK_SECRET` | no | `whsec_...`, only for webhook-based sync |
-| `DATABASE_PATH` | no | SQLite file path (default `./data/app.sqlite`) |
 
 ```bash
 openssl rand -base64 48   # SESSION_SECRET
@@ -167,9 +169,10 @@ npm start
 docker build -t linking-backend .
 docker run --rm -p 8080:8080 \
   --env-file .env \
-  -v "$PWD/data:/app/data" \
   linking-backend
 ```
+
+(No volume needed — the service is stateless.)
 
 ---
 
@@ -178,10 +181,9 @@ docker run --rm -p 8080:8080 \
 - **One secret, server-only.** The Stripe secret key is the sole provider
   credential and lives only in this server's env. The app holds only a 30-day
   session JWT.
-- **No per-user secrets at rest.** The database stores just an Apple-user →
-  Stripe-customer id mapping and linked account ids — all useless without the
-  secret key. There is no token-encryption layer because there are no tokens to
-  encrypt.
+- **No state at rest.** There is no database. The only durable mapping
+  (Apple-user → Stripe-customer) lives in Stripe as customer metadata, useless
+  without the secret key. No tokens to store, no DB to dump, no backups to leak.
 - **Credentials never touch us.** Bank authentication happens entirely inside
   Stripe's `FinancialConnectionsSheet`. Neither the app nor this server sees
   usernames, passwords, or MFA codes.
@@ -194,8 +196,9 @@ docker run --rm -p 8080:8080 \
 - **Hardening.** `helmet` security headers, `express-rate-limit` (global +
   stricter on `/auth`), CORS locked to `CORS_ORIGINS`, JSON body size capped,
   zod input validation, generic error responses (no stack traces / internals).
-- **Ownership checks.** `/unlink` verifies the account belongs to the
-  requesting user against our own records before calling Stripe.
+- **Ownership checks.** `/unlink` verifies with Stripe that the account belongs
+  to this user's customer before disconnecting; `/link/complete` verifies the
+  session's customer matches the authenticated user.
 - **Apple verification.** Identity tokens are verified against Apple's JWKS
   (signature, `iss`, `aud`, `exp`); only the immutable `sub` is trusted as the
   user id.
@@ -203,8 +206,7 @@ docker run --rm -p 8080:8080 \
 ### If a secret is compromised
 
 - **`STRIPE_SECRET_KEY` leaked:** roll it in the Stripe Dashboard immediately;
-  the old key stops working at once. No stored user data is exposed by the DB
-  alone.
+  the old key stops working at once. There is no local datastore to expose.
 - **`SESSION_SECRET` leaked:** rotate it; all issued session JWTs are
   invalidated and users must re-authenticate.
 
@@ -213,6 +215,6 @@ docker run --rm -p 8080:8080 \
 ## Notes
 
 - Node 20+ required.
-- `better-sqlite3` compiles a native addon on install (the Dockerfile installs
-  the needed build tools).
+- No native addons — the image is pure JS deps, so the Docker build is fast.
 - The official `stripe` SDK is used for all Financial Connections calls.
+- Stateless: no volume, no database, no backups. Scale machines freely.

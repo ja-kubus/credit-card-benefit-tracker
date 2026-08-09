@@ -1,8 +1,9 @@
 import { Router, type Response } from 'express';
 import { z } from 'zod';
 import { requireAuth, type AuthedRequest } from '../middleware/auth';
-import { getAccountsForUser } from '../db';
 import {
+  findCustomerId,
+  listCustomerAccounts,
   listTransactions,
   StripeClientError,
   type NormalizedTransaction,
@@ -36,9 +37,14 @@ transactionsRouter.get('/transactions', async (req: AuthedRequest, res: Response
   }
   const since = parsed.data.since;
 
-  const accounts = getAccountsForUser(userId);
-
   try {
+    const customerId = await findCustomerId(userId);
+    if (!customerId) {
+      res.json({ transactions: [] });
+      return;
+    }
+    const accounts = await listCustomerAccounts(customerId);
+
     const all: NormalizedTransaction[] = [];
 
     for (const account of accounts) {

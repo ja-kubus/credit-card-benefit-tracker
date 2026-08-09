@@ -2,27 +2,22 @@ import { Router, type Response } from 'express';
 import { z } from 'zod';
 import { requireAuth, type AuthedRequest } from '../middleware/auth';
 import {
-  upsertUser,
-  getUser,
-  setCustomerId,
-  upsertAccount,
-  getAccountsForUser,
-  deleteAccount,
-  userOwnsAccount,
-} from '../db';
-import {
-  getOrCreateCustomer,
+  getOrCreateCustomerId,
+  findCustomerId,
   createLinkSession,
-  retrieveSessionAccounts,
+  retrieveSession,
   subscribeAccount,
   listCustomerAccounts,
+  accountBelongsToCustomer,
   disconnectAccount,
   StripeClientError,
 } from '../stripe';
 import { logger } from '../logger';
 
 /**
- * Account linking via Stripe Financial Connections.
+ * Account linking via Stripe Financial Connections. STATELESS — no database:
+ * the app-user -> Stripe-customer mapping lives in Stripe customer metadata, and
+ * the linked accounts are read from Stripe on demand.
  *
  *  POST   /link/session            -> { clientSecret, sessionId }
  *  POST   /link/complete  { sessionId } -> { accounts }
@@ -36,21 +31,12 @@ import { logger } from '../logger';
 export const linksRouter = Router();
 linksRouter.use(requireAuth);
 
-/** Resolve (creating if needed) the Stripe customer id for this app user. */
-async function ensureCustomerId(userId: string): Promise<string> {
-  upsertUser(userId);
-  const existing = getUser(userId)?.stripeCustomerId ?? null;
-  const customerId = await getOrCreateCustomer(existing);
-  if (customerId !== existing) {
-    setCustomerId(userId, customerId);
-  }
-  return customerId;
-}
-
 function handleError(res: Response, context: string, err: unknown): void {
   if (err instanceof StripeClientError) {
     logger.warn(`stripe error: ${context}`, { status: err.status });
-    res.status(502).json({ error: 'upstream_error' });
+    res.status(err.status === 400 ? 400 : 502).json({
+      error: err.status === 400 ? 'invalid_request' : 'upstream_error',
+    });
     return;
   }
   logger.error(`${context} failed`, {
@@ -63,7 +49,7 @@ function handleError(res: Response, context: string, err: unknown): void {
 linksRouter.post('/link/session', async (req: AuthedRequest, res: Response) => {
   const userId = req.userId!;
   try {
-    const customerId = await ensureCustomerId(userId);
+    const customerId = await getOrCreateCustomerId(userId);
     const session = await createLinkSession(customerId);
     // The client_secret is scoped to this one linking attempt; safe to hand to
     // the app for the Stripe SDK. Never log it.
@@ -74,7 +60,7 @@ linksRouter.post('/link/session', async (req: AuthedRequest, res: Response) => {
 });
 
 // POST /link/complete — after the user finishes Stripe's sheet, read the linked
-// accounts, persist them, and subscribe each to daily transaction refreshes.
+// accounts and subscribe each to daily transaction refreshes.
 const completeSchema = z.object({ sessionId: z.string().min(1) });
 
 linksRouter.post('/link/complete', async (req: AuthedRequest, res: Response) => {
@@ -86,16 +72,16 @@ linksRouter.post('/link/complete', async (req: AuthedRequest, res: Response) => 
   }
 
   try {
-    const accounts = await retrieveSessionAccounts(parsed.data.sessionId);
+    const { customerId, accounts } = await retrieveSession(parsed.data.sessionId);
+
+    // Defense in depth: the session must belong to THIS user's customer.
+    const ourCustomer = await findCustomerId(userId);
+    if (!customerId || !ourCustomer || customerId !== ourCustomer) {
+      res.status(403).json({ error: 'forbidden' });
+      return;
+    }
 
     for (const a of accounts) {
-      upsertAccount({
-        id: a.id,
-        userId,
-        institution: a.institution || null,
-        displayName: a.displayName || null,
-        last4: a.last4 || null,
-      });
       // Enable transactions + kick off the first refresh. Non-fatal per account.
       try {
         await subscribeAccount(a.id);
@@ -116,22 +102,12 @@ linksRouter.post('/link/complete', async (req: AuthedRequest, res: Response) => 
 linksRouter.get('/accounts', async (req: AuthedRequest, res: Response) => {
   const userId = req.userId!;
   try {
-    const user = getUser(userId);
-    if (!user?.stripeCustomerId) {
+    const customerId = await findCustomerId(userId);
+    if (!customerId) {
       res.json({ accounts: [] });
       return;
     }
-    const accounts = await listCustomerAccounts(user.stripeCustomerId);
-    // Keep our local mirror fresh so /transactions and /unlink stay consistent.
-    for (const a of accounts) {
-      upsertAccount({
-        id: a.id,
-        userId,
-        institution: a.institution || null,
-        displayName: a.displayName || null,
-        last4: a.last4 || null,
-      });
-    }
+    const accounts = await listCustomerAccounts(customerId);
     res.json({ accounts });
   } catch (err) {
     handleError(res, 'accounts', err);
@@ -150,16 +126,15 @@ linksRouter.post('/unlink', async (req: AuthedRequest, res: Response) => {
   }
   const { accountId } = parsed.data;
 
-  // Authorize against our own records BEFORE calling Stripe, so a user can only
-  // ever disconnect their own accounts.
-  if (!userOwnsAccount(accountId, userId)) {
-    res.status(404).json({ error: 'not_found' });
-    return;
-  }
-
   try {
+    // Authorize against Stripe BEFORE disconnecting: the account must belong to
+    // this user's customer, so a user can only ever disconnect their own.
+    const customerId = await findCustomerId(userId);
+    if (!customerId || !(await accountBelongsToCustomer(accountId, customerId))) {
+      res.status(404).json({ error: 'not_found' });
+      return;
+    }
     await disconnectAccount(accountId);
-    deleteAccount(accountId, userId);
     res.json({ ok: true });
   } catch (err) {
     handleError(res, 'unlink', err);

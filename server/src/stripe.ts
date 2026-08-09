@@ -12,16 +12,23 @@ import { config } from './config';
  * SECURITY: never log the secret key, session client secrets, or full
  * transaction payloads.
  *
+ * STATELESS DESIGN: this service keeps NO database. The only durable fact — which
+ * Stripe Customer belongs to which app user — is stored inside Stripe as customer
+ * metadata (`metadata.app_user = <apple sub>`) and looked up with customer search.
+ * So Stripe is the single source of truth; there is nothing to persist or back up.
+ *
  * Flow:
- *   1. getOrCreateCustomer(userId)         — one Stripe Customer per app user.
+ *   1. getOrCreateCustomerId(appUserId)    — one Stripe Customer per app user,
+ *                                            keyed by metadata.app_user.
  *   2. createLinkSession(customerId)       — FC Session -> { id, client_secret }.
  *                                            The client_secret is handed to the
  *                                            iOS SDK to present the auth sheet.
  *   3. (user connects accounts in Stripe's own sheet — we never see creds)
- *   4. retrieveSession(sessionId)          — read the accounts the user linked.
+ *   4. retrieveSession(sessionId)          — read accounts + owning customer.
  *   5. subscribeAccount(accountId)         — enable daily transaction refresh.
- *   6. listTransactions(accountId, after?) — read normalized transactions.
- *   7. disconnectAccount(accountId)        — on unlink.
+ *   6. listCustomerAccounts(customerId)    — the user's linked accounts.
+ *   7. listTransactions(accountId, after?) — read normalized transactions.
+ *   8. disconnectAccount(accountId)        — on unlink.
  */
 
 const stripe = new Stripe(config.stripe.secretKey, {
@@ -52,21 +59,51 @@ async function guard<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-// ---- Customer ----
+// ---- Customer (keyed by app-user metadata; no local DB) ----
+
+/** Metadata key that maps a Stripe Customer to our app user (the Apple `sub`). */
+const APP_USER_KEY = 'app_user';
 
 /**
- * Create a Stripe Customer to represent this app user, or return an existing
- * one. The caller is responsible for persisting the returned id against the
- * user so we don't create duplicates. `existingCustomerId` short-circuits the
- * create when we already have one on file.
+ * The Apple `sub` is embedded in a Stripe search query string, so restrict it to
+ * a safe character set to prevent any query injection. Apple `sub`s are only
+ * alphanumerics, dots, underscores and hyphens in practice.
  */
-export async function getOrCreateCustomer(
-  existingCustomerId: string | null,
-): Promise<string> {
-  if (existingCustomerId) return existingCustomerId;
+function assertSafeUserId(appUserId: string): void {
+  if (!/^[A-Za-z0-9._-]{1,255}$/.test(appUserId)) {
+    throw new StripeClientError(400, 'invalid_user_id');
+  }
+}
+
+/**
+ * Find the Stripe Customer id for an app user via customer search on metadata,
+ * or null if none exists yet. Read-only — never creates.
+ *
+ * NOTE: Stripe's search index is eventually consistent (a just-created customer
+ * may take up to ~a minute to appear). That's fine here because a returning
+ * user's customer was created in an earlier session and is long since indexed.
+ */
+export async function findCustomerId(appUserId: string): Promise<string | null> {
+  assertSafeUserId(appUserId);
+  const res = await guard(() =>
+    stripe.customers.search({
+      query: `metadata['${APP_USER_KEY}']:'${appUserId}'`,
+      limit: 1,
+    }),
+  );
+  return res.data[0]?.id ?? null;
+}
+
+/**
+ * Resolve (creating if needed) the Stripe Customer id for an app user. The
+ * mapping is stored as customer metadata, so no local persistence is required.
+ */
+export async function getOrCreateCustomerId(appUserId: string): Promise<string> {
+  const existing = await findCustomerId(appUserId);
+  if (existing) return existing;
   const customer = await guard(() =>
     stripe.customers.create({
-      metadata: { app: 'CreditCardBenefitTracker' },
+      metadata: { app: 'CreditCardBenefitTracker', [APP_USER_KEY]: appUserId },
     }),
   );
   return customer.id;
@@ -125,20 +162,53 @@ function normalizeAccount(
   };
 }
 
+export interface SessionResult {
+  /** The customer the session was created for (for authorization checks). */
+  customerId: string | null;
+  accounts: AccountSummary[];
+}
+
 /**
- * Read back the accounts a user linked in a completed FC Session. The Session's
- * `accounts` is an expandable list; retrieve with it expanded.
+ * Read back a completed FC Session: the accounts the user linked plus the
+ * customer the session belongs to. The caller MUST verify `customerId` matches
+ * the authenticated user before trusting the accounts (session ids are
+ * unguessable, but we defend in depth).
  */
-export async function retrieveSessionAccounts(
-  sessionId: string,
-): Promise<AccountSummary[]> {
+export async function retrieveSession(sessionId: string): Promise<SessionResult> {
   const session = await guard(() =>
     stripe.financialConnections.sessions.retrieve(sessionId, {
       expand: ['accounts'],
     }),
   );
+  const holder = session.account_holder;
+  const customerId =
+    holder && 'customer' in holder && typeof holder.customer === 'string'
+      ? holder.customer
+      : null;
   const accounts = session.accounts?.data ?? [];
-  return accounts.map(normalizeAccount);
+  return { customerId, accounts: accounts.map(normalizeAccount) };
+}
+
+/**
+ * Verify a Financial Connections account belongs to a given customer. Used to
+ * authorize /unlink so a user can only ever disconnect their own accounts.
+ */
+export async function accountBelongsToCustomer(
+  accountId: string,
+  customerId: string,
+): Promise<boolean> {
+  try {
+    const a = await stripe.financialConnections.accounts.retrieve(accountId);
+    const holder = a.account_holder;
+    return (
+      !!holder &&
+      'customer' in holder &&
+      typeof holder.customer === 'string' &&
+      holder.customer === customerId
+    );
+  } catch {
+    return false;
+  }
 }
 
 /** List every FC account currently linked to a customer. */

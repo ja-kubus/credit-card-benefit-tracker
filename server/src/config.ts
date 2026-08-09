@@ -72,8 +72,6 @@ export const config = {
     webhookSecret: optional('STRIPE_WEBHOOK_SECRET'),
     apiVersion: '2025-02-24.acacia' as const,
   },
-
-  databasePath: optional('DATABASE_PATH', './data/app.sqlite'),
 } as const;
 
 export type Config = typeof config;

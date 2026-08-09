@@ -14,13 +14,6 @@ dist/
 *.p12
 certs/
 
-# Datastore (Apple->Stripe id mappings; still keep out of version control)
-*.sqlite
-*.sqlite-shm
-*.sqlite-wal
-*.db
-data/
-
 # Logs
 *.log
 logs/
