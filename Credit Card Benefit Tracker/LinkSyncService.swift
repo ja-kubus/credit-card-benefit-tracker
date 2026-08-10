@@ -272,6 +272,53 @@ enum LinkSyncService {
         return primary
     }
 
+    /// When an account is (re)connected, inherit the card assignment from a prior
+    /// mapping for the SAME institution + last-4. Stripe issues a new account id
+    /// on each reconnect, so without this the user would have to reassign the card
+    /// every time. No-op if the account is already mapped or has no last-4.
+    @MainActor
+    static func inheritMappingIfPossible(accountId: String,
+                                         institution: String,
+                                         lastFour: String,
+                                         accountDisplayName: String,
+                                         modelContext: ModelContext) {
+        guard !lastFour.isEmpty else { return }
+        let maps = (try? modelContext.fetch(FetchDescriptor<LinkedAccountMap>())) ?? []
+        if maps.contains(where: { $0.accountId == accountId }) { return }
+        guard let match = maps.first(where: {
+            $0.lastFour == lastFour && $0.institution == institution && !$0.lastFour.isEmpty
+        }) else { return }
+        modelContext.insert(LinkedAccountMap(
+            accountId: accountId,
+            catalogCardID: match.catalogCardID,
+            accountDisplayName: accountDisplayName,
+            institution: institution,
+            lastFour: lastFour
+        ))
+        try? modelContext.save()
+    }
+
+    /// Remove ALL on-device linked data (every linked statement + row + mapping),
+    /// for the "delete all my data" flow. Wallet cards and manual statements stay.
+    @MainActor
+    @discardableResult
+    static func removeAllLinkedData(modelContext: ModelContext) -> Int {
+        let statements = (try? modelContext.fetch(FetchDescriptor<Statement>())) ?? []
+        let userCards = (try? modelContext.fetch(FetchDescriptor<UserCard>())) ?? []
+        let maps = (try? modelContext.fetch(FetchDescriptor<LinkedAccountMap>())) ?? []
+        var removed = 0
+        for statement in statements where linkedAccountId(of: statement) != nil {
+            for c in userCards {
+                c.statements.removeAll { $0.persistentModelID == statement.persistentModelID }
+            }
+            modelContext.delete(statement)
+            removed += 1
+        }
+        for map in maps { modelContext.delete(map) }
+        try? modelContext.save()
+        return removed
+    }
+
     /// The card a linked account is currently mapped to, if any.
     @MainActor
     static func mappedCard(for accountId: String, modelContext: ModelContext) -> UserCard? {

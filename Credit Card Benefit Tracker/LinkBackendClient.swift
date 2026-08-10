@@ -247,6 +247,14 @@ actor LinkBackendClient {
         try Self.validate(response)
     }
 
+    /// POST /delete-my-data — disconnect every account and delete the Stripe
+    /// customer (full server-side "forget me").
+    func deleteMyData() async throws {
+        let request = try authorizedRequest(path: "delete-my-data", method: "POST", jsonBody: [:])
+        let (_, response) = try await URLSession.shared.data(for: request)
+        try Self.validate(response)
+    }
+
     // MARK: Helpers
 
     private func authorizedRequest(path: String, method: String, jsonBody: [String: Any]? = nil) throws -> URLRequest {

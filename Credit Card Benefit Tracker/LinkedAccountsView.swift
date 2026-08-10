@@ -32,6 +32,7 @@ struct LinkedAccountsView: View {
     @State private var pendingAssignAccountId: String?
     // Account the user tapped Disconnect on, awaiting confirmation.
     @State private var accountPendingDisconnect: LinkedAccount?
+    @State private var showDeleteAllConfirm = false
 
     var body: some View {
         List {
@@ -40,6 +41,7 @@ struct LinkedAccountsView: View {
             if isSignedIn {
                 connectSection
                 accountsSection
+                manageSection
             } else {
                 signInSection
             }
@@ -89,6 +91,18 @@ struct LinkedAccountsView: View {
             Button("Cancel", role: .cancel) { accountPendingDisconnect = nil }
         } message: { _ in
             Text("This stops syncing and removes the transactions imported from this account. Your card and any manually uploaded statements are kept.")
+        }
+        .confirmationDialog(
+            "Delete all linked data?",
+            isPresented: $showDeleteAllConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete everything", role: .destructive) {
+                Task { await deleteAllData() }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Disconnects every linked account, deletes all imported transactions from this device, and erases your data on our server. Your wallet cards and manually uploaded statements are kept. This cannot be undone.")
         }
     }
 
@@ -170,6 +184,22 @@ struct LinkedAccountsView: View {
                     }
                     .padding(.vertical, 2)
                 }
+            }
+        }
+    }
+
+    private var manageSection: some View {
+        Section("Manage") {
+            Button {
+                signOut()
+            } label: {
+                Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+            }
+            Button(role: .destructive) {
+                showDeleteAllConfirm = true
+            } label: {
+                Label("Delete all linked data", systemImage: "trash")
+                    .foregroundStyle(.red)
             }
         }
     }
@@ -316,6 +346,17 @@ struct LinkedAccountsView: View {
             isBusy = true
             defer { isBusy = false }
             accounts = try await LinkBackendClient.shared.completeLink(sessionId: session.sessionId)
+            // Auto-inherit a prior card assignment for reconnected accounts
+            // (same institution + last-4) so the user needn't reassign.
+            for account in accounts {
+                LinkSyncService.inheritMappingIfPossible(
+                    accountId: account.id,
+                    institution: account.institution,
+                    lastFour: account.lastFour,
+                    accountDisplayName: account.name,
+                    modelContext: modelContext
+                )
+            }
             let count = try await LinkSyncService.sync(modelContext: modelContext)
             statusMessage = "Connected. Imported \(count) new transactions."
         } catch {
@@ -348,6 +389,29 @@ struct LinkedAccountsView: View {
         do {
             let count = try await LinkSyncService.sync(modelContext: modelContext)
             statusMessage = "Imported \(count) new transactions."
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func signOut() {
+        Task {
+            await LinkBackendClient.shared.signOut()
+            isSignedIn = false
+            accounts = []
+            statusMessage = "Signed out."
+        }
+    }
+
+    private func deleteAllData() async {
+        isBusy = true
+        defer { isBusy = false }
+        errorMessage = nil
+        do {
+            try await LinkBackendClient.shared.deleteMyData()
+            let removed = LinkSyncService.removeAllLinkedData(modelContext: modelContext)
+            accounts = []
+            statusMessage = "Deleted all linked data (\(removed) statements removed)."
         } catch {
             errorMessage = error.localizedDescription
         }
