@@ -109,6 +109,71 @@ enum LinkSyncService {
         return inserted
     }
 
+    /// Remove ALL on-device data for a linked account: its statement(s), their
+    /// rows (cascade), and the account->card mapping. The wallet card itself is
+    /// kept — it may hold manual statements, benefits, and other linked accounts.
+    /// Called when the user disconnects an account. Returns rows removed.
+    @MainActor
+    @discardableResult
+    static func removeData(forAccountId accountId: String, modelContext: ModelContext) -> Int {
+        let statements = (try? modelContext.fetch(FetchDescriptor<Statement>())) ?? []
+        let userCards = (try? modelContext.fetch(FetchDescriptor<UserCard>())) ?? []
+        let maps = (try? modelContext.fetch(FetchDescriptor<LinkedAccountMap>())) ?? []
+
+        var removedRows = 0
+        for statement in statements where linkedAccountId(of: statement) == accountId {
+            removedRows += statement.rows.count
+            for c in userCards {
+                c.statements.removeAll { $0.persistentModelID == statement.persistentModelID }
+            }
+            modelContext.delete(statement) // cascade-deletes rows
+        }
+        for map in maps where map.accountId == accountId {
+            modelContext.delete(map)
+        }
+        try? modelContext.save()
+        return removedRows
+    }
+
+    /// Remove on-device linked data whose account is no longer in the active set
+    /// (e.g. disconnected in a previous session, or from another device). Only
+    /// call with an AUTHORITATIVE active-account list from a successful fetch —
+    /// never on error, or it could wipe still-valid data. Returns statements removed.
+    @MainActor
+    @discardableResult
+    static func reconcile(activeAccountIds: Set<String>, modelContext: ModelContext) -> Int {
+        let statements = (try? modelContext.fetch(FetchDescriptor<Statement>())) ?? []
+        let userCards = (try? modelContext.fetch(FetchDescriptor<UserCard>())) ?? []
+        let maps = (try? modelContext.fetch(FetchDescriptor<LinkedAccountMap>())) ?? []
+
+        var removed = 0
+        for statement in statements {
+            guard let acct = linkedAccountId(of: statement) else { continue } // linked only
+            if !activeAccountIds.contains(acct) {
+                for c in userCards {
+                    c.statements.removeAll { $0.persistentModelID == statement.persistentModelID }
+                }
+                modelContext.delete(statement)
+                removed += 1
+            }
+        }
+        for map in maps where !activeAccountIds.contains(map.accountId) {
+            modelContext.delete(map)
+        }
+        if removed > 0 || !maps.isEmpty { try? modelContext.save() }
+        return removed
+    }
+
+    /// The linked account id a statement belongs to, if any (handles the legacy
+    /// standalone cardID scheme as a fallback).
+    private static func linkedAccountId(of statement: Statement) -> String? {
+        if let id = statement.linkedAccountId { return id }
+        if statement.cardID.hasPrefix("linked_") {
+            return String(statement.cardID.dropFirst("linked_".count))
+        }
+        return nil
+    }
+
     /// Delete linked statements that have no transactions. These accumulate when
     /// an account is reconnected (Stripe issues a new account id) and its
     /// transactions all dedupe against a prior import, leaving an empty shell.

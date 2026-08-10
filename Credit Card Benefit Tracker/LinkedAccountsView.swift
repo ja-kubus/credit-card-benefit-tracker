@@ -30,6 +30,8 @@ struct LinkedAccountsView: View {
     @State private var showAddCard = false
     // Account awaiting a card assignment once the user finishes adding a card.
     @State private var pendingAssignAccountId: String?
+    // Account the user tapped Disconnect on, awaiting confirmation.
+    @State private var accountPendingDisconnect: LinkedAccount?
 
     var body: some View {
         List {
@@ -71,6 +73,22 @@ struct LinkedAccountsView: View {
         }
         .sheet(isPresented: $showAddCard, onDismiss: handleAddCardDismiss) {
             AddCardView()
+        }
+        .confirmationDialog(
+            "Disconnect this account?",
+            isPresented: Binding(
+                get: { accountPendingDisconnect != nil },
+                set: { if !$0 { accountPendingDisconnect = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: accountPendingDisconnect
+        ) { account in
+            Button("Disconnect & remove transactions", role: .destructive) {
+                Task { await disconnect(account) }
+            }
+            Button("Cancel", role: .cancel) { accountPendingDisconnect = nil }
+        } message: { _ in
+            Text("This stops syncing and removes the transactions imported from this account. Your card and any manually uploaded statements are kept.")
         }
     }
 
@@ -141,7 +159,7 @@ struct LinkedAccountsView: View {
                             }
                             Spacer()
                             Button(role: .destructive) {
-                                Task { await disconnect(account) }
+                                accountPendingDisconnect = account
                             } label: {
                                 Text("Disconnect").font(.caption.weight(.semibold))
                             }
@@ -308,8 +326,17 @@ struct LinkedAccountsView: View {
 
     private func loadAccounts() async {
         do {
-            accounts = try await LinkBackendClient.shared.accounts()
+            let fetched = try await LinkBackendClient.shared.accounts()
+            accounts = fetched
+            // Authoritative list succeeded — clean up any on-device data for
+            // accounts that are no longer active (disconnected elsewhere/earlier).
+            LinkSyncService.reconcile(
+                activeAccountIds: Set(fetched.map { $0.id }),
+                modelContext: modelContext
+            )
         } catch {
+            // Do NOT reconcile on error — the list isn't authoritative and we
+            // must not wipe still-valid data.
             errorMessage = error.localizedDescription
         }
     }
@@ -327,12 +354,18 @@ struct LinkedAccountsView: View {
     }
 
     private func disconnect(_ account: LinkedAccount) async {
+        accountPendingDisconnect = nil
         isBusy = true
         defer { isBusy = false }
         do {
             try await LinkBackendClient.shared.unlink(accountId: account.id)
             accounts.removeAll { $0.id == account.id }
-            statusMessage = "Disconnected \(account.name.isEmpty ? account.institution : account.name)."
+            // Remove the imported transactions + mapping for this account.
+            let removed = LinkSyncService.removeData(forAccountId: account.id, modelContext: modelContext)
+            let label = account.name.isEmpty ? account.institution : account.name
+            statusMessage = removed > 0
+                ? "Disconnected \(label) and removed \(removed) imported transactions."
+                : "Disconnected \(label)."
         } catch {
             errorMessage = error.localizedDescription
         }
