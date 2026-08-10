@@ -169,11 +169,6 @@ struct ContentView: View {
                     }
                     .badge(unreadNotificationCount)
             }
-            .safeAreaInset(edge: .bottom) {
-                // Ad banner for free users past their trial (placeholder; gated
-                // internally by SubscriptionManager.showsAds).
-                AdBannerView()
-            }
 
             // In-app event banner (period completed / fee recouped)
             if let payload = bannerCenter.current {

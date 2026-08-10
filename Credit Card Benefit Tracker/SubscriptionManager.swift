@@ -7,11 +7,10 @@
 //  the app gates on (ads, account linking, card cap).
 //
 //  Tiers:
-//    Free            — ads, no account linking
-//    Ad-Free ($0.99) — no ads, no account linking
-//    Premium ($2.99) — no ads, linking up to 5 cards
-//    Max ($5.99)     — no ads, linking up to 10 cards
-//    Trial (7 days)  — app-managed: no ads, linking up to 2 cards
+//    Free            — manual upload only, no account linking
+//    Premium ($2.99) — linking up to 5 cards
+//    Max ($5.99)     — linking up to 10 cards
+//    Trial (7 days)  — app-managed: linking up to 2 cards
 //
 //  The trial is app-managed (not a StoreKit intro offer) because it grants a
 //  REDUCED capability (2 cards) rather than the full product for free.
@@ -23,16 +22,14 @@ import StoreKit
 
 enum AppTier: Int, Comparable, CaseIterable {
     case free = 0
-    case adFree = 1
-    case premium = 2
-    case max = 3
+    case premium = 1
+    case max = 2
 
     static func < (lhs: AppTier, rhs: AppTier) -> Bool { lhs.rawValue < rhs.rawValue }
 
     var displayName: String {
         switch self {
         case .free: return "Free"
-        case .adFree: return "Ad-Free"
         case .premium: return "Concierge Premium"
         case .max: return "Concierge Max"
         }
@@ -40,15 +37,13 @@ enum AppTier: Int, Comparable, CaseIterable {
 }
 
 enum SubscriptionProduct {
-    static let adFree = "social.creditcardbenefittracker.adfree.monthly"
     static let premium = "social.creditcardbenefittracker.premium.monthly"
     static let max = "social.creditcardbenefittracker.max.monthly"
 
-    static let all: [String] = [adFree, premium, max]
+    static let all: [String] = [premium, max]
 
     static func tier(for productID: String) -> AppTier {
         switch productID {
-        case adFree: return .adFree
         case premium: return .premium
         case max: return .max
         default: return .free
@@ -72,9 +67,6 @@ final class SubscriptionManager: ObservableObject {
 
     // MARK: - Capabilities (what the rest of the app gates on)
 
-    /// Ads show only for a free user whose trial has ended.
-    var showsAds: Bool { purchasedTier == .free && !isInTrial }
-
     /// Account linking is available on Premium/Max, or during the trial.
     var canLinkAccounts: Bool { purchasedTier >= .premium || isInTrial }
 
@@ -83,7 +75,7 @@ final class SubscriptionManager: ObservableObject {
         switch purchasedTier {
         case .max: return 10
         case .premium: return 5
-        case .adFree, .free: return isInTrial ? 2 : 0
+        case .free: return isInTrial ? 2 : 0
         }
     }
 
@@ -134,7 +126,7 @@ final class SubscriptionManager: ObservableObject {
         defer { isLoadingProducts = false }
         do {
             let fetched = try await Product.products(for: SubscriptionProduct.all)
-            // Order: adFree, premium, max.
+            // Order: premium, max.
             products = fetched.sorted {
                 SubscriptionProduct.tier(for: $0.id) < SubscriptionProduct.tier(for: $1.id)
             }

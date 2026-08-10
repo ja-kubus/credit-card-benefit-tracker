@@ -20,27 +20,6 @@
         {
           "adHocOffers" : [],
           "codeOffers" : [],
-          "displayPrice" : "0.99",
-          "familyShareable" : false,
-          "groupNumber" : 3,
-          "internalID" : "10010001",
-          "introductoryOffer" : null,
-          "localizations" : [
-            {
-              "description" : "Remove ads",
-              "displayName" : "Ad-Free",
-              "locale" : "en_US"
-            }
-          ],
-          "productID" : "social.creditcardbenefittracker.adfree.monthly",
-          "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "Ad-Free",
-          "subscriptionGroupID" : "20010001",
-          "type" : "RecurringSubscription"
-        },
-        {
-          "adHocOffers" : [],
-          "codeOffers" : [],
           "displayPrice" : "2.99",
           "familyShareable" : false,
           "groupNumber" : 2,
@@ -48,7 +27,7 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "No ads and link up to 5 cards",
+              "description" : "Link up to 5 cards",
               "displayName" : "Concierge Premium",
               "locale" : "en_US"
             }
@@ -69,7 +48,7 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "No ads and link up to 10 cards",
+              "description" : "Link up to 10 cards",
               "displayName" : "Concierge Max",
               "locale" : "en_US"
             }

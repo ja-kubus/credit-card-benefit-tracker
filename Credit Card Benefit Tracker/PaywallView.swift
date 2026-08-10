@@ -34,14 +34,9 @@ struct PaywallView: View {
                     }
 
                     tierCard(
-                        tier: .adFree,
-                        tagline: "Remove ads",
-                        features: ["No ads", "Manual statement upload"]
-                    )
-                    tierCard(
                         tier: .premium,
                         tagline: "Link up to 5 cards",
-                        features: ["Everything in Ad-Free", "Connect cards automatically", "Up to 5 linked cards"]
+                        features: ["Connect cards automatically", "Up to 5 linked cards", "Transactions import + categorize"]
                     )
                     tierCard(
                         tier: .max,
@@ -154,7 +149,6 @@ struct PaywallView: View {
     private func product(for tier: AppTier) -> Product? {
         let id: String
         switch tier {
-        case .adFree: id = SubscriptionProduct.adFree
         case .premium: id = SubscriptionProduct.premium
         case .max: id = SubscriptionProduct.max
         case .free: return nil
