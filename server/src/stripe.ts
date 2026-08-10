@@ -132,6 +132,9 @@ export async function createLinkSession(
       account_holder: { type: 'customer', customer: customerId },
       permissions: ['transactions'],
       prefetch: ['transactions'],
+      // Only let the user link CREDIT CARDS in the sheet. This avoids the
+      // per-account connection fee on checking/savings the app can't use.
+      filters: { account_subcategories: ['credit_card'] },
     }),
   );
   if (!session.client_secret) {
@@ -149,6 +152,20 @@ export interface AccountSummary {
   last4: string;
   category: string; // e.g. "credit", "cash"
   subcategory: string; // e.g. "credit_card", "checking"
+}
+
+/**
+ * This app only deals with CREDIT CARDS. Filtering to credit accounts here means
+ * we never subscribe (and never pay the transactions fee) for a user's
+ * checking/savings/investment accounts, and they never clutter the UI.
+ *
+ * Stripe's `category` is one of "cash" | "credit" | "investment" | "other";
+ * credit cards fall under "credit" (subcategory "credit_card"). We gate on
+ * `category === 'credit'` because subcategory is occasionally unset — this
+ * reliably excludes deposit/investment accounts without risking a real card.
+ */
+function isCreditAccount(a: Stripe.FinancialConnections.Account): boolean {
+  return a.category === 'credit';
 }
 
 function normalizeAccount(
@@ -187,7 +204,7 @@ export async function retrieveSession(sessionId: string): Promise<SessionResult>
     holder && 'customer' in holder && typeof holder.customer === 'string'
       ? holder.customer
       : null;
-  const accounts = session.accounts?.data ?? [];
+  const accounts = (session.accounts?.data ?? []).filter(isCreditAccount);
   return { customerId, accounts: accounts.map(normalizeAccount) };
 }
 
@@ -229,6 +246,7 @@ export async function listCustomerAccounts(
     limit: 100,
   })) {
     if (a.status && a.status !== 'active') continue;
+    if (!isCreditAccount(a)) continue; // credit cards only — this app's scope
     out.push(normalizeAccount(a));
   }
   return out;
