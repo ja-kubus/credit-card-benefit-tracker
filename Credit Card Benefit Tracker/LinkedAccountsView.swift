@@ -19,12 +19,17 @@ import AuthenticationServices
 
 struct LinkedAccountsView: View {
     @Environment(\.modelContext) private var modelContext
+    @Query(sort: \UserCard.dateAdded) private var userCards: [UserCard]
+    @Query private var accountMaps: [LinkedAccountMap]
 
     @State private var isSignedIn = LinkBackendClient.shared.isSignedIn
     @State private var accounts: [LinkedAccount] = []
     @State private var isBusy = false
     @State private var statusMessage: String?
     @State private var errorMessage: String?
+    @State private var showAddCard = false
+    // Account awaiting a card assignment once the user finishes adding a card.
+    @State private var pendingAssignAccountId: String?
 
     var body: some View {
         List {
@@ -63,6 +68,9 @@ struct LinkedAccountsView: View {
         }
         .task {
             if isSignedIn { await loadAccounts() }
+        }
+        .sheet(isPresented: $showAddCard, onDismiss: handleAddCardDismiss) {
+            AddCardView()
         }
     }
 
@@ -122,21 +130,25 @@ struct LinkedAccountsView: View {
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(accounts) { account in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(account.name.isEmpty ? account.institution : account.name)
-                                .font(.subheadline.weight(.semibold))
-                            Text(accountSubtitle(account))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(account.name.isEmpty ? account.institution : account.name)
+                                    .font(.subheadline.weight(.semibold))
+                                Text(accountSubtitle(account))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button(role: .destructive) {
+                                Task { await disconnect(account) }
+                            } label: {
+                                Text("Disconnect").font(.caption.weight(.semibold))
+                            }
+                            .buttonStyle(.borderless)
                         }
-                        Spacer()
-                        Button(role: .destructive) {
-                            Task { await disconnect(account) }
-                        } label: {
-                            Text("Disconnect").font(.caption.weight(.semibold))
-                        }
-                        .buttonStyle(.borderless)
+
+                        cardAssignmentRow(for: account)
                     }
                     .padding(.vertical, 2)
                 }
@@ -149,6 +161,86 @@ struct LinkedAccountsView: View {
         if !account.institution.isEmpty { parts.append(account.institution) }
         if !account.lastFour.isEmpty { parts.append("•••• \(account.lastFour)") }
         return parts.joined(separator: " ")
+    }
+
+    /// Row that shows which wallet card a linked account is assigned to, with a
+    /// menu to (re)assign it. Until a card is chosen, the imported transactions
+    /// are stored but not shown anywhere — so this is emphasized when unmapped.
+    @ViewBuilder
+    private func cardAssignmentRow(for account: LinkedAccount) -> some View {
+        let mapped = mappedCard(for: account)
+        Menu {
+            if userCards.isEmpty {
+                Text("No cards in your wallet yet")
+            } else {
+                ForEach(userCards) { card in
+                    Button {
+                        assign(account, to: card)
+                    } label: {
+                        if mapped?.persistentModelID == card.persistentModelID {
+                            Label(card.name, systemImage: "checkmark")
+                        } else {
+                            Text(card.name)
+                        }
+                    }
+                }
+            }
+            Divider()
+            Button {
+                pendingAssignAccountId = account.id
+                showAddCard = true
+            } label: {
+                Label("Add a card from catalog…", systemImage: "plus")
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: mapped == nil ? "exclamationmark.circle.fill" : "creditcard.fill")
+                    .foregroundStyle(mapped == nil ? .orange : Color.appLeaf)
+                Text(mapped == nil ? "Assign to a card to see transactions" : "Card: \(mapped!.name)")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(mapped == nil ? .orange : .primary)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.primary.opacity(0.06))
+            )
+        }
+        .buttonStyle(.borderless)
+    }
+
+    private func mappedCard(for account: LinkedAccount) -> UserCard? {
+        guard let catalogID = accountMaps.first(where: { $0.accountId == account.id })?.catalogCardID else { return nil }
+        return userCards.first(where: { $0.catalogCardID == catalogID })
+    }
+
+    private func assign(_ account: LinkedAccount, to card: UserCard) {
+        LinkSyncService.assign(
+            accountId: account.id,
+            to: card,
+            accountDisplayName: account.name,
+            institution: account.institution,
+            lastFour: account.lastFour,
+            modelContext: modelContext
+        )
+        let label = account.name.isEmpty ? account.institution : account.name
+        statusMessage = "Assigned \(label) to \(card.name). Its transactions now appear under that card."
+    }
+
+    /// After the user adds a card from the catalog, auto-assign it to the account
+    /// they were mapping (convenience for the common single-add case).
+    private func handleAddCardDismiss() {
+        defer { pendingAssignAccountId = nil }
+        guard let accountId = pendingAssignAccountId,
+              let account = accounts.first(where: { $0.id == accountId }),
+              mappedCard(for: account) == nil,
+              let newest = userCards.sorted(by: { $0.dateAdded > $1.dateAdded }).first
+        else { return }
+        assign(account, to: newest)
     }
 
     // MARK: - Actions

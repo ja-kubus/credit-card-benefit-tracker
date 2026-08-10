@@ -323,7 +323,12 @@ final class Statement {
     var statementMonth: Date  // For organizing statements by month/year
     var uploadHash: String    // Hash to prevent duplicate uploads
     var issuers: String       // Store as string for now
-    
+    // For statements imported from a linked (Stripe) account: the Stripe
+    // Financial Connections account id this statement's transactions came from.
+    // nil for manually uploaded statements. Lets linked data be re-parented to a
+    // different card without losing the tie to its source account.
+    var linkedAccountId: String? = nil
+
     @Relationship(deleteRule: .cascade) var rows: [StatementRow] = []
 
     init(cardID: String, fileName: String, issuer: String) {
@@ -335,6 +340,26 @@ final class Statement {
         let hashInput = "\(cardID)_\(fileName)_\(now.timeIntervalSince1970)"
         self.uploadHash = String(hashInput.hashValue)
         self.issuers = issuer
+    }
+}
+
+/// Persistent mapping from a linked (Stripe) account to the wallet card the user
+/// assigned it to. Survives re-syncs so imported transactions always attribute
+/// to the same card. `catalogCardID` matches `UserCard.catalogCardID`.
+@Model
+final class LinkedAccountMap {
+    @Attribute(.unique) var accountId: String
+    var catalogCardID: String
+    var accountDisplayName: String
+    var institution: String
+    var lastFour: String
+
+    init(accountId: String, catalogCardID: String, accountDisplayName: String = "", institution: String = "", lastFour: String = "") {
+        self.accountId = accountId
+        self.catalogCardID = catalogCardID
+        self.accountDisplayName = accountDisplayName
+        self.institution = institution
+        self.lastFour = lastFour
     }
 }
 

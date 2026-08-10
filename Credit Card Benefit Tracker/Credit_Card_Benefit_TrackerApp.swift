@@ -16,6 +16,7 @@ struct Credit_Card_Benefit_TrackerApp: App {
             BenefitCompletion.self,
             NotificationSettings.self,
             AppNotification.self,
+            LinkedAccountMap.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
