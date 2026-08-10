@@ -62,15 +62,13 @@ enum LinkSyncService {
             }
             let issuerForCategorization = targetCard?.issuer ?? accountName
 
-            // Find-or-create one Statement per linked account. Match by the stable
-            // linkedAccountId, falling back to the legacy fileName match so
-            // statements imported before this field existed aren't duplicated.
+            // Find (and consolidate any duplicates of) this account's statement,
+            // or create one. Matching is robust to the legacy naming/id schemes so
+            // we never orphan the original rows or leave empty duplicate shells.
+            let candidates = linkedStatements(for: accountId, fileName: statementFileName, in: existingStatements)
             let statement: Statement
-            if let existing = existingStatements.first(where: {
-                $0.linkedAccountId == accountId ||
-                ($0.linkedAccountId == nil && $0.fileName == statementFileName)
-            }) {
-                statement = existing
+            if let primary = consolidate(candidates, modelContext: modelContext) {
+                statement = primary
             } else {
                 statement = Statement(
                     cardID: targetCard?.catalogCardID ?? "linked_\(accountId)",
@@ -138,10 +136,50 @@ enum LinkSyncService {
 
         let userCards = (try? modelContext.fetch(FetchDescriptor<UserCard>())) ?? []
         let statements = (try? modelContext.fetch(FetchDescriptor<Statement>())) ?? []
-        for statement in statements where statement.linkedAccountId == accountId {
-            reparent(statement: statement, to: card, userCards: userCards)
+        let fileName = "Linked · \(accountDisplayName)"
+        let candidates = linkedStatements(for: accountId, fileName: fileName, in: statements)
+        if let primary = consolidate(candidates, modelContext: modelContext) {
+            primary.linkedAccountId = accountId
+            reparent(statement: primary, to: card, userCards: userCards)
         }
         try? modelContext.save()
+    }
+
+    /// All statements that belong to a linked account, across the current and
+    /// legacy identification schemes (stable id, standalone cardID, legacy name).
+    @MainActor
+    private static func linkedStatements(for accountId: String, fileName: String, in statements: [Statement]) -> [Statement] {
+        statements.filter {
+            $0.linkedAccountId == accountId ||
+            $0.cardID == "linked_\(accountId)" ||
+            ($0.linkedAccountId == nil && $0.fileName == fileName)
+        }
+    }
+
+    /// Collapse duplicate statements for one account into a single statement:
+    /// keep the one with the most rows, move any rows from the others into it
+    /// (deduped), and delete the now-empty duplicates. Returns the survivor.
+    @MainActor
+    private static func consolidate(_ candidates: [Statement], modelContext: ModelContext) -> Statement? {
+        guard let primary = candidates.max(by: { $0.rows.count < $1.rows.count }) else { return nil }
+        var seen = Set(primary.rows.map { dedupeKey(date: $0.transactionDate, description: $0.transactionDescription, amount: $0.amount) })
+        for other in candidates where other.persistentModelID != primary.persistentModelID {
+            for row in other.rows {
+                let key = dedupeKey(date: row.transactionDate, description: row.transactionDescription, amount: row.amount)
+                if seen.contains(key) { continue }
+                seen.insert(key)
+                let copy = StatementRow(
+                    transactionDate: row.transactionDate,
+                    category: row.category,
+                    amount: row.amount,
+                    transactionDescription: row.transactionDescription
+                )
+                primary.rows.append(copy)
+                modelContext.insert(copy)
+            }
+            modelContext.delete(other) // cascade-deletes its (now-copied) rows
+        }
+        return primary
     }
 
     /// The card a linked account is currently mapped to, if any.

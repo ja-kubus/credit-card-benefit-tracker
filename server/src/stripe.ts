@@ -213,7 +213,13 @@ export async function accountBelongsToCustomer(
   }
 }
 
-/** List every FC account currently linked to a customer. */
+/**
+ * List the FC accounts currently linked AND active for a customer.
+ *
+ * Disconnecting an account doesn't remove it from `accounts.list` — Stripe keeps
+ * it with status "inactive"/"disconnected". We filter to `status === 'active'`
+ * so a disconnected account doesn't reappear after the user unlinks it.
+ */
 export async function listCustomerAccounts(
   customerId: string,
 ): Promise<AccountSummary[]> {
@@ -222,6 +228,7 @@ export async function listCustomerAccounts(
     account_holder: { customer: customerId },
     limit: 100,
   })) {
+    if (a.status && a.status !== 'active') continue;
     out.push(normalizeAccount(a));
   }
   return out;
