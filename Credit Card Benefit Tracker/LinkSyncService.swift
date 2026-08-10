@@ -104,8 +104,32 @@ enum LinkSyncService {
             }
         }
 
+        cleanupEmptyLinkedStatements(modelContext: modelContext)
         try? modelContext.save()
         return inserted
+    }
+
+    /// Delete linked statements that have no transactions. These accumulate when
+    /// an account is reconnected (Stripe issues a new account id) and its
+    /// transactions all dedupe against a prior import, leaving an empty shell.
+    /// Only linked statements are touched — manual uploads are never deleted.
+    @MainActor
+    @discardableResult
+    static func cleanupEmptyLinkedStatements(modelContext: ModelContext) -> Int {
+        let statements = (try? modelContext.fetch(FetchDescriptor<Statement>())) ?? []
+        let userCards = (try? modelContext.fetch(FetchDescriptor<UserCard>())) ?? []
+        var removed = 0
+        for statement in statements {
+            let isLinked = statement.linkedAccountId != nil || statement.cardID.hasPrefix("linked_")
+            guard isLinked, statement.rows.isEmpty else { continue }
+            for c in userCards {
+                c.statements.removeAll { $0.persistentModelID == statement.persistentModelID }
+            }
+            modelContext.delete(statement)
+            removed += 1
+        }
+        if removed > 0 { try? modelContext.save() }
+        return removed
     }
 
     /// Assign a linked account to a card: upsert the mapping and immediately
@@ -142,6 +166,7 @@ enum LinkSyncService {
             primary.linkedAccountId = accountId
             reparent(statement: primary, to: card, userCards: userCards)
         }
+        cleanupEmptyLinkedStatements(modelContext: modelContext)
         try? modelContext.save()
     }
 
