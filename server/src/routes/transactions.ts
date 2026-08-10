@@ -49,10 +49,23 @@ transactionsRouter.get('/transactions', async (req: AuthedRequest, res: Response
 
     for (const account of accounts) {
       const name = account.displayName || account.institution || 'Account';
-      const raw = await listTransactions(account.id, name);
-      for (const t of raw) {
-        if (since && t.date && t.date < since) continue; // lexical compare valid for YYYY-MM-DD
-        all.push(t);
+      try {
+        const raw = await listTransactions(account.id, name);
+        for (const t of raw) {
+          if (since && t.date && t.date < since) continue; // lexical compare valid for YYYY-MM-DD
+          all.push(t);
+        }
+      } catch (err) {
+        // Don't let one account's failure 500 the whole sync — skip it, return
+        // whatever the other accounts yielded.
+        logger.warn('skipping account transactions', {
+          reason:
+            err instanceof StripeClientError
+              ? err.detail
+              : err instanceof Error
+                ? err.message
+                : 'unknown',
+        });
       }
     }
 

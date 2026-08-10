@@ -53,7 +53,9 @@ async function guard<T>(fn: () => Promise<T>): Promise<T> {
     return await fn();
   } catch (err) {
     if (err instanceof Stripe.errors.StripeError) {
-      throw new StripeClientError(err.statusCode ?? 502, err.type);
+      // Stripe error messages describe the API problem and contain no secrets,
+      // so keep the message as `detail` for diagnostics (logged, never sent).
+      throw new StripeClientError(err.statusCode ?? 502, err.message);
     }
     throw err;
   }
@@ -324,9 +326,22 @@ export async function listTransactions(
   }
 
   const out: NormalizedTransaction[] = [];
-  for await (const t of stripe.financialConnections.transactions.list(params)) {
-    if (t.status === 'void') continue;
-    out.push(normalizeTransaction(t, accountName));
+  try {
+    for await (const t of stripe.financialConnections.transactions.list(params)) {
+      if (t.status === 'void') continue;
+      out.push(normalizeTransaction(t, accountName));
+    }
+  } catch (err) {
+    // Before a transaction refresh has succeeded, Stripe throws a 400 ("no
+    // transactions to retrieve … subscribe/refresh to initiate"). That's not a
+    // real error for us — it just means data isn't ready yet. Return empty.
+    if (
+      err instanceof Stripe.errors.StripeError &&
+      /no transactions to retrieve|transaction refresh/i.test(err.message)
+    ) {
+      return [];
+    }
+    throw err;
   }
   return out;
 }

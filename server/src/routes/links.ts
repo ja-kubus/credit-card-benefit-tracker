@@ -87,7 +87,15 @@ linksRouter.post('/link/complete', async (req: AuthedRequest, res: Response) => 
         await subscribeAccount(a.id);
       } catch (err) {
         logger.warn('subscribe failed for account', {
-          reason: err instanceof Error ? err.message : 'unknown',
+          accountId: a.id,
+          category: a.category,
+          subcategory: a.subcategory,
+          reason:
+            err instanceof StripeClientError
+              ? err.detail
+              : err instanceof Error
+                ? err.message
+                : 'unknown',
         });
       }
     }
