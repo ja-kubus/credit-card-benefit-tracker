@@ -19,6 +19,7 @@ import AuthenticationServices
 
 struct LinkedAccountsView: View {
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var subscriptions: SubscriptionManager
     @Query(sort: \UserCard.dateAdded) private var userCards: [UserCard]
     @Query private var accountMaps: [LinkedAccountMap]
 
@@ -33,17 +34,26 @@ struct LinkedAccountsView: View {
     // Account the user tapped Disconnect on, awaiting confirmation.
     @State private var accountPendingDisconnect: LinkedAccount?
     @State private var showDeleteAllConfirm = false
+    @State private var showPaywall = false
 
     var body: some View {
         List {
             privacySection
 
             if isSignedIn {
-                connectSection
+                if subscriptions.canLinkAccounts {
+                    connectSection
+                } else {
+                    upgradeSection
+                }
                 accountsSection
                 manageSection
             } else {
-                signInSection
+                if subscriptions.canLinkAccounts {
+                    signInSection
+                } else {
+                    upgradeSection
+                }
             }
 
             if let statusMessage {
@@ -75,6 +85,9 @@ struct LinkedAccountsView: View {
         }
         .sheet(isPresented: $showAddCard, onDismiss: handleAddCardDismiss) {
             AddCardView()
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView(contextMessage: "Connect your cards automatically with Concierge Premium or Max.")
         }
         .confirmationDialog(
             "Disconnect this account?",
@@ -151,6 +164,30 @@ struct LinkedAccountsView: View {
             } label: {
                 Label("Sync now", systemImage: "arrow.triangle.2.circlepath")
             }
+        } footer: {
+            Text("\(accounts.count) of \(subscriptions.maxLinkedCards) linked cards used on your \(subscriptions.effectiveTierName) plan.")
+        }
+    }
+
+    private var upgradeSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Automatic card linking", systemImage: "lock.fill")
+                    .font(.subheadline.weight(.semibold))
+                Text("Connect your cards to import transactions automatically with Concierge Premium (5 cards) or Max (10 cards). Manual statement upload stays free.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button {
+                    showPaywall = true
+                } label: {
+                    Text("See plans")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color.appCoral)
+            }
+            .padding(.vertical, 4)
         }
     }
 
@@ -323,6 +360,12 @@ struct LinkedAccountsView: View {
     private func connect() async {
         errorMessage = nil
         statusMessage = nil
+        // Enforce the plan's card cap before incurring any connection cost.
+        guard accounts.count < subscriptions.maxLinkedCards else {
+            errorMessage = "You've reached your plan's limit of \(subscriptions.maxLinkedCards) linked cards. Upgrade or disconnect a card to add more."
+            showPaywall = true
+            return
+        }
         do {
             // 1. Ask the backend for a Financial Connections session.
             isBusy = true

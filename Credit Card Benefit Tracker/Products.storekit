@@ -1,0 +1,90 @@
+{
+  "identifier" : "3F1B2C7A-CONCIERGE-STOREKIT",
+  "nonRenewingSubscriptions" : [],
+  "products" : [],
+  "settings" : {
+    "_applicationInternalID" : "",
+    "_developerTeamID" : "",
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 0,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : []
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "20010001",
+      "localizations" : [],
+      "name" : "Concierge",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "0.99",
+          "familyShareable" : false,
+          "groupNumber" : 3,
+          "internalID" : "10010001",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Remove ads",
+              "displayName" : "Ad-Free",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "social.creditcardbenefittracker.adfree.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Ad-Free",
+          "subscriptionGroupID" : "20010001",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "2.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "10010002",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "No ads and link up to 5 cards",
+              "displayName" : "Concierge Premium",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "social.creditcardbenefittracker.premium.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Concierge Premium",
+          "subscriptionGroupID" : "20010001",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "5.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "10010003",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "No ads and link up to 10 cards",
+              "displayName" : "Concierge Max",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "social.creditcardbenefittracker.max.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Concierge Max",
+          "subscriptionGroupID" : "20010001",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

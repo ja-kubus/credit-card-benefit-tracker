@@ -10,8 +10,10 @@ import SwiftData
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
+    @EnvironmentObject private var subscriptions: SubscriptionManager
     @Query private var userCards: [UserCard]
     @State private var showTutorial = false
+    @State private var showPaywall = false
     @State private var selectedCardForMissed: UserCard? = nil
 @AppStorage("hasCompletedTutorial") private var hasCompletedTutorial = false
     @AppStorage("isRedoingTutorial") private var isRedoingTutorial = false
@@ -20,6 +22,19 @@ struct SettingsView: View {
         NavigationStack {
             List {
                 Section {
+                    Button {
+                        showPaywall = true
+                    } label: {
+                        HStack {
+                            Label("Subscription", systemImage: "sparkles")
+                            Spacer()
+                            Text(subscriptions.effectiveTierName)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .tint(.primary)
+
                     NavigationLink {
                         NotificationsCenterView(userCards: userCards)
                     } label: {
@@ -66,6 +81,9 @@ struct SettingsView: View {
             }
             .sheet(item: $selectedCardForMissed) { card in
                 MissedBenefitsSheet(card: card)
+            }
+            .sheet(isPresented: $showPaywall) {
+                PaywallView()
             }
         }
     }
@@ -358,4 +376,5 @@ struct ClearAllMissedSheet: View {
 #Preview {
     SettingsView()
         .modelContainer(for: [UserCard.self, NotificationSettings.self], inMemory: true)
+        .environmentObject(SubscriptionManager())
 }

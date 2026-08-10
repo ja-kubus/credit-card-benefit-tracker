@@ -10,6 +10,8 @@ import SwiftData
 
 @main
 struct Credit_Card_Benefit_TrackerApp: App {
+    @StateObject private var subscriptions = SubscriptionManager()
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             UserCard.self,
@@ -30,6 +32,8 @@ struct Credit_Card_Benefit_TrackerApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(subscriptions)
+                .onAppear { subscriptions.startTrialIfNeeded() }
         }
         .modelContainer(sharedModelContainer)
     }
