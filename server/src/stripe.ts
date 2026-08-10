@@ -265,6 +265,28 @@ export async function disconnectAccount(accountId: string): Promise<void> {
   }
 }
 
+/**
+ * Full data deletion for a user ("forget me"): disconnect every active account,
+ * then delete the Stripe Customer. Deleting the customer removes the
+ * metadata.app_user mapping, so the user is fully forgotten server-side (a
+ * future sign-in creates a fresh customer). Returns the number of accounts
+ * disconnected.
+ */
+export async function deleteCustomerData(customerId: string): Promise<number> {
+  const accounts = await listCustomerAccounts(customerId);
+  let disconnected = 0;
+  for (const a of accounts) {
+    try {
+      await disconnectAccount(a.id);
+      disconnected += 1;
+    } catch {
+      // Best-effort: keep going so one bad account doesn't block deletion.
+    }
+  }
+  await guard(() => stripe.customers.del(customerId));
+  return disconnected;
+}
+
 // ---- Transactions ----
 
 export interface NormalizedTransaction {

@@ -10,6 +10,7 @@ import {
   listCustomerAccounts,
   accountBelongsToCustomer,
   disconnectAccount,
+  deleteCustomerData,
   StripeClientError,
 } from '../stripe';
 import { logger } from '../logger';
@@ -146,5 +147,23 @@ linksRouter.post('/unlink', async (req: AuthedRequest, res: Response) => {
     res.json({ ok: true });
   } catch (err) {
     handleError(res, 'unlink', err);
+  }
+});
+
+// POST /delete-my-data — disconnect every account and delete the Stripe
+// customer, fully forgetting the user server-side. Idempotent: a user with no
+// customer yet just gets { ok: true }.
+linksRouter.post('/delete-my-data', async (req: AuthedRequest, res: Response) => {
+  const userId = req.userId!;
+  try {
+    const customerId = await findCustomerId(userId);
+    if (!customerId) {
+      res.json({ ok: true, disconnected: 0 });
+      return;
+    }
+    const disconnected = await deleteCustomerData(customerId);
+    res.json({ ok: true, disconnected });
+  } catch (err) {
+    handleError(res, 'delete-my-data', err);
   }
 });
