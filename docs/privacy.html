@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy Policy · Credit Card Benefit Tracker</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1a1a1a; --muted: #5a5a5a;
+    --accent: #e8735a; --card: #f6f6f7; --border: #e3e3e6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16171a; --fg: #ececec; --muted: #a0a0a6;
+            --accent: #ff8a70; --card: #202226; --border: #2c2e33; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 44px 20px 72px; }
+  h1 { font-size: 1.7rem; }
+  h2 { font-size: 1.2rem; margin: 30px 0 8px; }
+  p, li { margin: 8px 0; }
+  ul { padding-left: 1.2em; }
+  a { color: var(--accent); }
+  .meta { color: var(--muted); font-size: 0.92rem; }
+  .card { background: var(--card); border: 1px solid var(--border);
+          border-radius: 12px; padding: 14px 18px; margin: 16px 0; }
+  footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--border);
+           color: var(--muted); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <p class="meta"><a href="index.html">← Credit Card Benefit Tracker</a></p>
+    <h1>Privacy Policy</h1>
+    <p class="meta">Effective date: [DATE]</p>
+
+    <div class="card">
+      <strong>Summary:</strong> If you choose to link an account, your bank login happens
+      only inside Stripe's secure screen — we never see or store your banking credentials.
+      Your transaction data is stored on your device. We don't sell your data, and you can
+      delete it any time in the app.
+    </div>
+
+    <h2>Information we collect</h2>
+    <p><strong>Manual statement upload:</strong> statements you import are processed and
+    stored on your device only. They are not sent to our servers.</p>
+    <p><strong>If you choose to link an account (optional):</strong></p>
+    <ul>
+      <li><strong>Sign in with Apple identifier.</strong> A stable, anonymous identifier
+      used only to associate you with your linked-account connection. We do not collect
+      your name or email through this flow.</li>
+      <li><strong>Account linking via Stripe.</strong> We use Stripe Financial Connections.
+      You enter your bank credentials directly into Stripe's interface — the app and our
+      server never receive them. Stripe provides us access to your transactions (amount,
+      description, date) and basic account metadata (institution name, last 4 digits,
+      account type).</li>
+      <li><strong>Transaction data.</strong> Transactions retrieved via Stripe are returned
+      to the app and stored on your device. Our server does not retain them.</li>
+    </ul>
+    <p>We do <strong>not</strong> collect your bank username/password, full account numbers,
+    precise location, contacts, or advertising identifiers.</p>
+
+    <h2>How we use information</h2>
+    <ul>
+      <li>To display your benefits, spending, and points on your device.</li>
+      <li>To maintain your linked-account connection (via Stripe) so transactions can refresh.</li>
+      <li>We do not use your data for advertising and do not sell it.</li>
+    </ul>
+
+    <h2>Third-party services</h2>
+    <ul>
+      <li><strong>Apple – Sign in with Apple</strong> —
+        <a href="https://www.apple.com/legal/privacy/">Apple Privacy Policy</a>.</li>
+      <li><strong>Stripe – Financial Connections</strong>, which handles your banking
+        credentials directly — <a href="https://stripe.com/privacy">Stripe Privacy Policy</a>.</li>
+      <li><strong>Google Cloud Run</strong> hosts our backend, which brokers requests to
+        Stripe and stores no transaction data.</li>
+    </ul>
+
+    <h2>Data storage and security</h2>
+    <ul>
+      <li>Transaction data is stored on your device.</li>
+      <li>Our backend holds no database of your data; the only mapping (your app identifier
+        to a Stripe customer) is stored within Stripe.</li>
+      <li>All network communication uses encryption in transit (HTTPS).</li>
+      <li>Access to Stripe is authenticated by a secret key held only on our server, never
+        in the app.</li>
+    </ul>
+
+    <h2>Data retention and deletion</h2>
+    <ul>
+      <li><strong>On-device data:</strong> removed when you delete it in the app or uninstall.</li>
+      <li><strong>Disconnect an account:</strong> stops syncing and removes that account's
+        imported transactions from your device.</li>
+      <li><strong>Delete all linked data:</strong> disconnects every linked account and
+        deletes your associated record on our server (via Stripe).</li>
+    </ul>
+
+    <h2>Children's privacy</h2>
+    <p>The app is not directed to children under 13 (or the age required by your
+    jurisdiction), and we do not knowingly collect their data.</p>
+
+    <h2>Changes to this policy</h2>
+    <p>We may update this policy; material changes will be reflected by updating the
+    effective date and, where appropriate, an in-app notice.</p>
+
+    <h2>Contact</h2>
+    <p>Questions? Contact <a href="mailto:REPLACE_WITH_YOUR_EMAIL">REPLACE_WITH_YOUR_EMAIL</a>.</p>
+
+    <footer>© Credit Card Benefit Tracker</footer>
+  </div>
+</body>
+</html>
