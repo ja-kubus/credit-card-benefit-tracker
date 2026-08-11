@@ -384,7 +384,7 @@ struct TutorialOverlay: View {
     
     private func stepDescription(_ step: Int) -> String {
         switch step {
-        case 0: return "The Wallet tab holds all your cards. This app tracks their benefits and helps you maximize rewards. Let's add your first card!"
+        case 0: return "The Wallet tab holds all your cards. This app tracks their benefits and helps you maximize rewards. Tip: you can drag this tutorial box around if it ever covers something you want to see. Let's add your first card!"
         case 1: return "Tap the plus (+) icon in the top right to add a new card."
         case 2: return "Add as many cards as you like from the list — you need at least one to continue. You can always add more later."
         case 3: return "Switch between accordion and grid layouts. Tap the toggle in the top left to see grid mode. There's also a filter to hide no-fee cards."

@@ -52,7 +52,40 @@ static let publishableKey = "pk_live_your_key"
 - **Apple Developer Program** — $99/year (already required for Sign in with
   Apple).
 
-## 4. App Store prerequisites
+## 4. Subscriptions (App Store Connect)
+
+The app ships two auto-renewable subscriptions (StoreKit 2). Locally they run
+against `Credit Card Benefit Tracker/Products.storekit` (select it in the
+scheme: Edit Scheme → Run → Options → StoreKit Configuration). For production,
+create the real products so the IDs match what the code expects:
+
+| Tier | Product ID | Price |
+| ---- | ---------- | ----- |
+| Concierge Premium | `social.creditcardbenefittracker.premium.monthly` | $2.99/mo |
+| Concierge Max | `social.creditcardbenefittracker.max.monthly` | $5.99/mo |
+
+Steps:
+1. [App Store Connect](https://appstoreconnect.apple.com) → your app →
+   **Monetization → Subscriptions**.
+2. Create a **Subscription Group** (e.g. "Concierge"). Both products go in the
+   same group so upgrades/downgrades pro-rate correctly.
+3. Add the two subscriptions with the **exact Product IDs above** (they must
+   match `SubscriptionProduct` in `SubscriptionManager.swift`), each with a
+   monthly duration and the price above; fill in display name, description, and
+   a review screenshot.
+4. **Enroll in the Apple Small Business Program** (if eligible, <$1M/yr) to pay
+   15% instead of 30% — directly doubles your per-sub margin.
+5. Submit the subscriptions for review (they review alongside the app build).
+
+Notes:
+- The **7-day trial is app-managed** (grants Premium features capped at 2 cards),
+  NOT a StoreKit introductory offer — so you do **not** configure a free trial
+  on these products. Leave introductory offers empty.
+- There is no Ad-Free product (that tier was removed) and no ads, so there's no
+  AdMob SDK, App Tracking Transparency prompt, or ad-related privacy disclosure
+  to deal with.
+
+## 5. App Store prerequisites
 
 - [ ] **Privacy policy hosted at a public URL** (adapt `PRIVACY.md`), linked in
       App Store Connect and in-app.
@@ -67,7 +100,7 @@ static let publishableKey = "pk_live_your_key"
 - [ ] Confirm the transaction **sign** is correct on real data (purchases =
       positive spend); flip one line in `server/src/stripe.ts` if not.
 
-## 5. Monitoring & ops
+## 6. Monitoring & ops
 
 - **Backend logs:**
   ```bash
@@ -77,7 +110,7 @@ static let publishableKey = "pk_live_your_key"
   errors; **Developers → Logs** for API calls.
 - **Rotate secrets** per `server/SECURITY.md` if anything leaks.
 
-## 6. Deploy gotcha (already documented)
+## 7. Deploy gotcha (already documented)
 
 `gcloud run deploy --source` under gcloud's bundled Python 3.14 crashes with
 "ZIP does not support timestamps before 1980". Prefix deploys with
