@@ -53,7 +53,7 @@ struct TutorialView: View {
                 .zIndex(0)
             
             // Tutorial overlay with highlight and instructions (not shown on final step)
-            if currentStep != 14 {
+            if currentStep != 15 {
                 TutorialOverlay(
                     step: currentStep,
                     onContinue: handleContinue,
@@ -71,7 +71,7 @@ struct TutorialView: View {
             let allCardsBefore = try? modelContext.fetch(FetchDescriptor<UserCard>())
             cardCountBeforeTutorial = allCardsBefore?.count ?? 0
         }
-        .interactiveDismissDisabled(currentStep < 14) // Prevent swipe-to-dismiss during tutorial
+        .interactiveDismissDisabled(currentStep < 15) // Prevent swipe-to-dismiss during tutorial
     }
     
     @ViewBuilder
@@ -128,6 +128,9 @@ struct TutorialView: View {
             // Settings & Notifications
             SettingsView()
         case 14:
+            // Linked Accounts & Plans (both live in Settings)
+            SettingsView()
+        case 15:
             // Thank you screen (no overlay)
             ThankYouView(onDone: {
                 completeTutorial()
@@ -171,7 +174,7 @@ struct TutorialView: View {
         
         currentStep += 1
 
-        if currentStep > 14 {
+        if currentStep > 15 {
             completeTutorial()
         }
     }
@@ -374,6 +377,7 @@ struct TutorialOverlay: View {
         case 11: return "Best Card"
         case 12: return "Subscriptions"
         case 13: return "Settings & Notifications"
+        case 14: return "Link Cards & Plans"
         default: return "Tutorial"
         }
     }
@@ -394,6 +398,7 @@ struct TutorialOverlay: View {
         case 11: return "The Best Card tab shows which card earns the most for each spending category. Point valuations are factored in, and you can exclude restricted portal/loyalty rates."
         case 12: return "The Subscriptions tab auto-detects recurring charges from your statements. Swipe to ignore ones you don't want tracked, and revisit them in the ignored list."
         case 13: return "Settings is your notifications center — a red badge flags unread alerts like completed periods or recouped fees. Set per-card notification toggles, and restart this tutorial anytime. There's also a home-screen widget."
+        case 14: return "Prefer not to upload statements? In Settings → Linked Accounts, securely connect a card to import transactions automatically — your bank login happens only inside Stripe, never in the app. Linking is part of Concierge Premium ($2.99, up to 5 cards) or Max ($5.99, up to 10 cards), and your first 7 days are free. Tap Subscription to see plans. Manual upload stays free forever."
         default: return "Tutorial step"
         }
     }
@@ -443,4 +448,5 @@ struct ThankYouView: View {
 #Preview {
     TutorialView()
         .modelContainer(for: UserCard.self, inMemory: true)
+        .environmentObject(SubscriptionManager())
 }
