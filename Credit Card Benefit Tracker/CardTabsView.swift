@@ -19,6 +19,11 @@ struct CardTabsView: View {
     @State private var selectedTab: TabSelection = .earnings
     @State private var showStatementUpload = false
     @State private var scrollToTarget: String?
+    @State private var showTransferPartners = false
+
+    private var transferProgram: TransferProgram? {
+        TransferPartnerCatalog.program(for: card)
+    }
     
     enum TabSelection {
         case earnings
@@ -84,6 +89,16 @@ struct CardTabsView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
+                if transferProgram != nil {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            showTransferPartners = true
+                        } label: {
+                            Label("Transfer Partners", systemImage: "arrow.left.arrow.right.circle")
+                        }
+                        .tint(Color.appCoral)
+                    }
+                }
                 ToolbarItem(placement: .destructiveAction) {
                     Button(role: .destructive) {
                         onDelete?()
@@ -96,6 +111,11 @@ struct CardTabsView: View {
             .sheet(isPresented: $showStatementUpload) {
                 StatementUploadSheet(userCards: [card]) {
                     // Callback on successful upload
+                }
+            }
+            .sheet(isPresented: $showTransferPartners) {
+                if let program = transferProgram {
+                    TransferPartnersSheet(program: program)
                 }
             }
         }
