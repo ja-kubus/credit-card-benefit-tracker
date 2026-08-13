@@ -469,6 +469,30 @@ struct SpendingBreakdownView: View {
         return rows.sorted { $0.transactionDate > $1.transactionDate }
     }
 
+    /// Maps each row (by id) to the card it came from and its source statement,
+    /// so the detail sheet can label transactions by card and open their statement.
+    private func spendingRowSources(for category: String) -> [PersistentIdentifier: SpendingRowSource] {
+        let bounds = spendingDateBounds
+        var map: [PersistentIdentifier: SpendingRowSource] = [:]
+        for card in userCards {
+            if !spendingSelectedCards.isEmpty && !spendingSelectedCards.contains(card.persistentModelID) { continue }
+            for statement in card.statements {
+                for row in statement.rows {
+                    if row.transactionDate < bounds.start || row.transactionDate > bounds.end { continue }
+                    let key = row.category.isEmpty ? "Other" : row.category
+                    if key == category {
+                        map[row.persistentModelID] = SpendingRowSource(
+                            cardName: card.name,
+                            color: Color(hex: card.accentColor),
+                            statement: statement
+                        )
+                    }
+                }
+            }
+        }
+        return map
+    }
+
     /// Stable color for a category, cycling through the theme palette.
     private func spendingColor(for category: String) -> Color {
         let palette: [Color] = [.appCoral, .appGiraffe, .appLeaf, .appBell, .appCoralDark,
@@ -664,10 +688,19 @@ struct SpendingBreakdownView: View {
         )) { holder in
             SpendingCategoryDetailSheet(
                 category: holder.value,
-                rows: spendingRows(for: holder.value)
+                rows: spendingRows(for: holder.value),
+                sources: spendingRowSources(for: holder.value)
             )
         }
     }
+}
+
+/// Where a spending transaction came from: its card (name + accent color) and
+/// the statement it was imported/parsed from.
+struct SpendingRowSource {
+    let cardName: String
+    let color: Color
+    let statement: Statement
 }
 
 // MARK: - Spending Category Detail
@@ -683,6 +716,7 @@ private struct IdentifiableString: Identifiable {
 /// option to pool similar merchants, and inline category editing.
 struct SpendingCategoryDetailSheet: View {
     let category: String
+    let sources: [PersistentIdentifier: SpendingRowSource]
     @State private var rows: [StatementRow]
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -690,9 +724,11 @@ struct SpendingCategoryDetailSheet: View {
     @State private var poolSimilar = false
     @State private var sortMode: SortMode = .newest
     @State private var editingRow: StatementRow?
+    @State private var selectedStatement: Statement?
 
-    init(category: String, rows: [StatementRow]) {
+    init(category: String, rows: [StatementRow], sources: [PersistentIdentifier: SpendingRowSource] = [:]) {
         self.category = category
+        self.sources = sources
         _rows = State(initialValue: rows)
     }
 
@@ -784,36 +820,56 @@ struct SpendingCategoryDetailSheet: View {
                         }
                     } else {
                         ForEach(sortedRows) { row in
-                            Button {
-                                editingRow = row
-                            } label: {
-                                HStack(alignment: .firstTextBaseline) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(row.transactionDescription.isEmpty ? category : row.transactionDescription)
-                                            .font(.subheadline)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Button {
+                                    editingRow = row
+                                } label: {
+                                    HStack(alignment: .firstTextBaseline) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(row.transactionDescription.isEmpty ? category : row.transactionDescription)
+                                                .font(.subheadline)
+                                                .foregroundStyle(.primary)
+                                                .lineLimit(2)
+                                            Text(row.transactionDate, format: .dateTime.year().month().day())
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        Text(row.amount, format: .currency(code: "USD"))
+                                            .font(.subheadline.weight(.semibold))
                                             .foregroundStyle(.primary)
-                                            .lineLimit(2)
-                                        Text(row.transactionDate, format: .dateTime.year().month().day())
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                        Image(systemName: "pencil")
+                                            .font(.caption2)
+                                            .foregroundStyle(.tertiary)
                                     }
-                                    Spacer()
-                                    Text(row.amount, format: .currency(code: "USD"))
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.primary)
-                                    Image(systemName: "pencil")
-                                        .font(.caption2)
-                                        .foregroundStyle(.tertiary)
+                                    .contentShape(Rectangle())
                                 }
-                                .padding(.vertical, 2)
-                                .contentShape(Rectangle())
+                                .buttonStyle(.plain)
+
+                                // Source card — colored, tap to open its statement.
+                                if let src = sources[row.persistentModelID] {
+                                    Button {
+                                        selectedStatement = src.statement
+                                    } label: {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "creditcard.fill")
+                                                .font(.system(size: 10))
+                                            Text(src.cardName)
+                                                .font(.caption.weight(.medium))
+                                            Image(systemName: "chevron.right")
+                                                .font(.system(size: 8, weight: .semibold))
+                                        }
+                                        .foregroundStyle(src.color)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                             }
-                            .buttonStyle(.plain)
+                            .padding(.vertical, 2)
                         }
                     }
                 } footer: {
                     if !poolSimilar {
-                        Text("Tap a transaction to change its category.")
+                        Text("Tap a transaction to change its category, or tap the card to open its statement.")
                     }
                 }
             }
@@ -851,6 +907,16 @@ struct SpendingCategoryDetailSheet: View {
                     },
                     onDismiss: { editingRow = nil }
                 )
+            }
+            .sheet(isPresented: Binding(
+                get: { selectedStatement != nil },
+                set: { if !$0 { selectedStatement = nil } }
+            )) {
+                if let statement = selectedStatement {
+                    StatementDetailPopup(statement: statement, modelContext: modelContext) {
+                        selectedStatement = nil
+                    }
+                }
             }
         }
     }
