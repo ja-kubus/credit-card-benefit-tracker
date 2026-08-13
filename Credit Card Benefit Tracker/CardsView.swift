@@ -803,7 +803,9 @@ struct PointsBreakdownView: View {
                     description: row.transactionDescription,
                     date: row.transactionDate,
                     amount: row.amount,
-                    points: row.amount * rate.multiplier
+                    points: row.amount * rate.multiplier,
+                    cardName: card.name,
+                    statement: statement
                 ))
             }
         }
@@ -1040,7 +1042,8 @@ struct PointsBreakdownView: View {
                 PointsCategoryDetailSheet(
                     category: selection.category,
                     multiplier: selection.multiplier,
-                    transactions: transactionsForCategory(selection.category)
+                    transactions: transactionsForCategory(selection.category),
+                    modelContext: modelContext
                 )
             }
         }
@@ -1054,6 +1057,8 @@ struct PointsTransaction: Identifiable {
     let date: Date
     let amount: Double
     let points: Double
+    let cardName: String
+    let statement: Statement?
 }
 
 /// Identifiable selection wrapper for the points-category drill-down sheet.
@@ -1068,7 +1073,9 @@ struct PointsCategoryDetailSheet: View {
     let category: String
     let multiplier: Double
     let transactions: [PointsTransaction]
+    let modelContext: ModelContext
     @Environment(\.dismiss) private var dismiss
+    @State private var statementToShow: Statement? = nil
 
     private var totalPoints: Double { transactions.reduce(0) { $0 + $1.points } }
     private var totalSpend: Double { transactions.reduce(0) { $0 + $1.amount } }
@@ -1106,9 +1113,22 @@ struct PointsCategoryDetailSheet: View {
                         ForEach(transactions) { txn in
                             HStack(alignment: .firstTextBaseline) {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(txn.description.isEmpty ? category : txn.description)
-                                        .font(.subheadline)
-                                        .lineLimit(2)
+                                    // Tapping the name opens the statement it came from.
+                                    Button {
+                                        statementToShow = txn.statement
+                                    } label: {
+                                        Text(txn.description.isEmpty ? category : txn.description)
+                                            .font(.subheadline)
+                                            .multilineTextAlignment(.leading)
+                                            .lineLimit(2)
+                                            .foregroundStyle(txn.statement != nil ? Color.appCoral : Color.primary)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .disabled(txn.statement == nil)
+
+                                    Text(txn.cardName)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
                                     Text(txn.date, format: .dateTime.year().month().day())
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
@@ -1135,6 +1155,16 @@ struct PointsCategoryDetailSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                         .foregroundStyle(Color.appCoral)
+                }
+            }
+            .sheet(isPresented: Binding(
+                get: { statementToShow != nil },
+                set: { if !$0 { statementToShow = nil } }
+            )) {
+                if let statement = statementToShow {
+                    StatementDetailPopup(statement: statement, modelContext: modelContext) {
+                        statementToShow = nil
+                    }
                 }
             }
         }
