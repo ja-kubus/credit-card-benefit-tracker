@@ -820,9 +820,11 @@ struct SpendingCategoryDetailSheet: View {
                         }
                     } else {
                         ForEach(sortedRows) { row in
-                            VStack(alignment: .leading, spacing: 4) {
+                            let src = sources[row.persistentModelID]
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                // LEFT (large tap area): open the source statement.
                                 Button {
-                                    editingRow = row
+                                    if let src { selectedStatement = src.statement }
                                 } label: {
                                     HStack(alignment: .firstTextBaseline) {
                                         VStack(alignment: .leading, spacing: 2) {
@@ -833,43 +835,48 @@ struct SpendingCategoryDetailSheet: View {
                                             Text(row.transactionDate, format: .dateTime.year().month().day())
                                                 .font(.caption)
                                                 .foregroundStyle(.secondary)
+                                            if let src {
+                                                HStack(spacing: 4) {
+                                                    Image(systemName: "creditcard.fill")
+                                                        .font(.system(size: 10))
+                                                    Text(src.cardName)
+                                                        .font(.caption.weight(.medium))
+                                                    Image(systemName: "chevron.right")
+                                                        .font(.system(size: 8, weight: .semibold))
+                                                }
+                                                .foregroundStyle(src.color)
+                                            }
                                         }
-                                        Spacer()
+                                        Spacer(minLength: 8)
                                         Text(row.amount, format: .currency(code: "USD"))
                                             .font(.subheadline.weight(.semibold))
                                             .foregroundStyle(.primary)
-                                        Image(systemName: "pencil")
-                                            .font(.caption2)
-                                            .foregroundStyle(.tertiary)
                                     }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
+                                .disabled(src == nil)
 
-                                // Source card — colored, tap to open its statement.
-                                if let src = sources[row.persistentModelID] {
-                                    Button {
-                                        selectedStatement = src.statement
-                                    } label: {
-                                        HStack(spacing: 4) {
-                                            Image(systemName: "creditcard.fill")
-                                                .font(.system(size: 10))
-                                            Text(src.cardName)
-                                                .font(.caption.weight(.medium))
-                                            Image(systemName: "chevron.right")
-                                                .font(.system(size: 8, weight: .semibold))
-                                        }
-                                        .foregroundStyle(src.color)
-                                    }
-                                    .buttonStyle(.plain)
+                                // RIGHT (dedicated control): change the category.
+                                Button {
+                                    editingRow = row
+                                } label: {
+                                    Image(systemName: "pencil.circle.fill")
+                                        .font(.title3)
+                                        .foregroundStyle(Color.appCoral)
+                                        .padding(.vertical, 4)
+                                        .padding(.leading, 4)
+                                        .contentShape(Rectangle())
                                 }
+                                .buttonStyle(.plain)
                             }
                             .padding(.vertical, 2)
                         }
                     }
                 } footer: {
                     if !poolSimilar {
-                        Text("Tap a transaction to change its category, or tap the card to open its statement.")
+                        Text("Tap a transaction to open its statement, or tap the pencil to change its category.")
                     }
                 }
             }
