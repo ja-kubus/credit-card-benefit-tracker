@@ -34,7 +34,7 @@ linksRouter.use(requireAuth);
 
 function handleError(res: Response, context: string, err: unknown): void {
   if (err instanceof StripeClientError) {
-    logger.warn(`stripe error: ${context}`, { status: err.status });
+    logger.warn(`stripe error: ${context}`, { status: err.status, reason: err.detail });
     res.status(err.status === 400 ? 400 : 502).json({
       error: err.status === 400 ? 'invalid_request' : 'upstream_error',
     });

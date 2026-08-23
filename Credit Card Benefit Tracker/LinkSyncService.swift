@@ -282,11 +282,17 @@ enum LinkSyncService {
                                          lastFour: String,
                                          accountDisplayName: String,
                                          modelContext: ModelContext) {
-        guard !lastFour.isEmpty else { return }
         let maps = (try? modelContext.fetch(FetchDescriptor<LinkedAccountMap>())) ?? []
         if maps.contains(where: { $0.accountId == accountId }) { return }
-        guard let match = maps.first(where: {
-            $0.lastFour == lastFour && $0.institution == institution && !$0.lastFour.isEmpty
+        // Match a prior mapping by card NAME + institution first (last-4 is not
+        // unique — e.g. every Amex card on a membership shares the same last-4),
+        // falling back to last-4 only when a display name isn't available.
+        guard let match = maps.first(where: { m in
+            guard m.institution == institution else { return false }
+            if !accountDisplayName.isEmpty && !m.accountDisplayName.isEmpty {
+                return m.accountDisplayName == accountDisplayName
+            }
+            return !lastFour.isEmpty && m.lastFour == lastFour
         }) else { return }
         modelContext.insert(LinkedAccountMap(
             accountId: accountId,

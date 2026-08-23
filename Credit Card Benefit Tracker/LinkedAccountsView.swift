@@ -391,10 +391,10 @@ struct LinkedAccountsView: View {
             // 3. Confirm the link server-side and pull transactions.
             isBusy = true
             defer { isBusy = false }
-            accounts = try await LinkBackendClient.shared.completeLink(sessionId: session.sessionId)
-            // Auto-inherit a prior card assignment for reconnected accounts
-            // (same institution + last-4) so the user needn't reassign.
-            for account in accounts {
+            let linked = try await LinkBackendClient.shared.completeLink(sessionId: session.sessionId)
+            // Auto-inherit a prior card assignment for reconnected accounts so the
+            // user needn't reassign.
+            for account in linked {
                 LinkSyncService.inheritMappingIfPossible(
                     accountId: account.id,
                     institution: account.institution,
@@ -404,6 +404,9 @@ struct LinkedAccountsView: View {
                 )
             }
             let count = try await LinkSyncService.sync(modelContext: modelContext)
+            // Refresh the FULL account list (not just this session's accounts) so
+            // previously linked cards at the same institution don't disappear.
+            await loadAccounts()
             statusMessage = "Connected. Imported \(count) new transactions."
         } catch {
             isBusy = false

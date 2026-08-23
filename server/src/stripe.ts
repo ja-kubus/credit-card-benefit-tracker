@@ -132,9 +132,11 @@ export async function createLinkSession(
       account_holder: { type: 'customer', customer: customerId },
       permissions: ['transactions'],
       prefetch: ['transactions'],
-      // Only let the user link CREDIT CARDS in the sheet. This avoids the
-      // per-account connection fee on checking/savings the app can't use.
-      filters: { account_subcategories: ['credit_card'] },
+      // NOTE: we intentionally do NOT filter by account_subcategories. Amex
+      // charge cards (Gold/Platinum) are not classified as "credit_card", so a
+      // credit_card-only filter excluded them. We instead keep only credit-type
+      // accounts server-side via isCreditAccount (category === 'credit'), which
+      // still covers charge cards while dropping checking/savings.
     }),
   );
   if (!session.client_secret) {
@@ -246,7 +248,7 @@ export async function listCustomerAccounts(
     limit: 100,
   })) {
     if (a.status && a.status !== 'active') continue;
-    if (!isCreditAccount(a)) continue; // credit cards only — this app's scope
+    if (!isCreditAccount(a)) continue; // credit-type accounts only — this app's scope
     out.push(normalizeAccount(a));
   }
   return out;
