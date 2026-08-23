@@ -21,7 +21,7 @@ enum StripeLinkConfig {
     /// The Financial Connections sheet is authorized by the per-session
     /// client_secret from the backend; this is set on STPAPIClient only because
     /// some SDK paths expect a configured publishable key. Leave empty if unused.
-    static let publishableKey = "pk_test_51U2NcyCZrtCDpbdSVyFT1ZisdAq8j0VjNoNlbbzh6W86BxsBHOBlfSKfICbUh16HQDSJ2osvZvx9ZwjjNuUOHyum00GpWXqxCO"
+    static let publishableKey = "pk_live_51U2NcoECePV0DtYZeFcKEnxgNte5PYnxXCpnmNYb7AgeBIRwMSVK5rkZV9ANqovOVKHbts61HlREOxcm84GUn4cY00KYBmzGk0"
 
     /// Custom URL scheme the Stripe sheet returns to after a bank's app-to-app
     /// or OAuth flow (e.g. "ccbt://stripe-redirect"). Register the scheme in
