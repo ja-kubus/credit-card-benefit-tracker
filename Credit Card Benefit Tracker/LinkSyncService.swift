@@ -87,6 +87,12 @@ enum LinkSyncService {
             }
 
             for txn in txns {
+                // Skip card/bill payments: a payment to the card is money leaving
+                // your bank to clear the balance — it's not spending and not a
+                // refund, so it must not count toward (or subtract from) spend.
+                // Matches how uploaded statements are parsed. Refunds are kept.
+                if StatementParser.isBillPayment(txn.description) { continue }
+
                 let key = dedupeKey(date: txn.date, description: txn.description, amount: txn.amount)
                 if seen.contains(key) { continue }
                 seen.insert(key)
@@ -104,9 +110,28 @@ enum LinkSyncService {
             }
         }
 
+        removeLinkedBillPayments(modelContext: modelContext)
         cleanupEmptyLinkedStatements(modelContext: modelContext)
         try? modelContext.save()
         return inserted
+    }
+
+    /// Remove card/bill-payment rows that were imported into linked statements
+    /// before we started filtering them. These wrongly reduced "total spend".
+    /// Only touches linked statements; refunds and real purchases are kept.
+    @MainActor
+    @discardableResult
+    static func removeLinkedBillPayments(modelContext: ModelContext) -> Int {
+        let statements = (try? modelContext.fetch(FetchDescriptor<Statement>())) ?? []
+        var removed = 0
+        for statement in statements where linkedAccountId(of: statement) != nil {
+            for row in statement.rows where StatementParser.isBillPayment(row.transactionDescription) {
+                modelContext.delete(row)
+                removed += 1
+            }
+        }
+        if removed > 0 { try? modelContext.save() }
+        return removed
     }
 
     /// Remove ALL on-device data for a linked account: its statement(s), their

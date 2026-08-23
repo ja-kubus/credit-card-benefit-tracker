@@ -220,6 +220,9 @@ struct ContentView: View {
             // Remove empty linked-statement shells left by reconnects (Stripe
             // issues a new account id, whose transactions dedupe to nothing).
             LinkSyncService.cleanupEmptyLinkedStatements(modelContext: modelContext)
+            // Remove card/bill-payment rows wrongly imported into linked
+            // statements (they aren't spending and skewed the spend total).
+            LinkSyncService.removeLinkedBillPayments(modelContext: modelContext)
             // Seed already-satisfied conditions silently (read, no banner) so we
             // don't banner-storm on launch for states that were already true.
             NotificationEvents.evaluate(cards: userCards, context: modelContext, silent: true)
