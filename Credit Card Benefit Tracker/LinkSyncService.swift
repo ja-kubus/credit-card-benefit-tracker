@@ -125,7 +125,11 @@ enum LinkSyncService {
         let statements = (try? modelContext.fetch(FetchDescriptor<Statement>())) ?? []
         var removed = 0
         for statement in statements where linkedAccountId(of: statement) != nil {
-            for row in statement.rows where StatementParser.isBillPayment(row.transactionDescription) {
+            // Collect first, then delete — mutating rows while iterating it can
+            // skip elements.
+            let payments = statement.rows.filter { StatementParser.isBillPayment($0.transactionDescription) }
+            for row in payments {
+                statement.rows.removeAll { $0.persistentModelID == row.persistentModelID }
                 modelContext.delete(row)
                 removed += 1
             }
