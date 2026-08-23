@@ -136,12 +136,13 @@ final class SubscriptionManager: ObservableObject {
     }
 
     /// Recompute the purchased tier from current entitlements (highest wins).
+    /// `Transaction.currentEntitlements` already yields only active, non-revoked,
+    /// non-expired entitlements, so we trust it rather than re-filtering (manual
+    /// date checks misfire under StoreKit Testing's accelerated clock).
     func refreshEntitlements() async {
         var highest: AppTier = .free
         for await result in Transaction.currentEntitlements {
             guard case .verified(let transaction) = result else { continue }
-            if transaction.revocationDate != nil { continue }
-            if let exp = transaction.expirationDate, exp < Date() { continue }
             let tier = SubscriptionProduct.tier(for: transaction.productID)
             if tier > highest { highest = tier }
         }

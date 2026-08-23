@@ -81,6 +81,9 @@ struct LinkedAccountsView: View {
             }
         }
         .task {
+            // Make sure entitlement/trial state is current before gating linking.
+            await subscriptions.refreshEntitlements()
+            subscriptions.evaluateTrial()
             if isSignedIn { await loadAccounts() }
         }
         .sheet(isPresented: $showAddCard, onDismiss: handleAddCardDismiss) {
