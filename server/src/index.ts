@@ -18,6 +18,16 @@ const app = express();
 // Behind a proxy/load balancer in production so rate-limit sees real client IPs.
 app.set('trust proxy', 1);
 
+// Disable ETags and forbid caching. Responses (accounts, transactions) must
+// always be fresh: the iOS URLSession was caching GET responses and receiving
+// 304 Not Modified, causing stale account/transaction lists — and the app's
+// reconcile step could then delete just-linked accounts as "no longer active".
+app.set('etag', false);
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
+
 // Security headers.
 app.use(helmet());
 
