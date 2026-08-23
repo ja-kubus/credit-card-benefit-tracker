@@ -304,6 +304,58 @@ enum LinkSyncService {
         try? modelContext.save()
     }
 
+    /// Best-effort auto-assign a linked account to a wallet card by matching the
+    /// imported card's name (e.g. "American Express Gold Card") to a card in the
+    /// user's wallet ("Gold Card"). Only assigns on an UNAMBIGUOUS match (exactly
+    /// one wallet card whose name tokens are all contained in the account's name);
+    /// otherwise leaves it for manual assignment. No-op if already mapped.
+    @MainActor
+    @discardableResult
+    static func autoAssignByName(accountId: String,
+                                 accountDisplayName: String,
+                                 institution: String,
+                                 lastFour: String,
+                                 modelContext: ModelContext) -> Bool {
+        guard !accountDisplayName.isEmpty else { return false }
+        let maps = (try? modelContext.fetch(FetchDescriptor<LinkedAccountMap>())) ?? []
+        if maps.contains(where: { $0.accountId == accountId }) { return false }
+
+        let acctTokens = nameTokens(accountDisplayName)
+        guard !acctTokens.isEmpty else { return false }
+
+        let userCards = (try? modelContext.fetch(FetchDescriptor<UserCard>())) ?? []
+        var best: UserCard?
+        var bestScore = 0
+        var tie = false
+        for card in userCards {
+            let ct = nameTokens(card.name)
+            guard !ct.isEmpty, ct.isSubset(of: acctTokens) else { continue }
+            let score = ct.count
+            if score > bestScore {
+                best = card; bestScore = score; tie = false
+            } else if score == bestScore {
+                tie = true
+            }
+        }
+        guard let match = best, !tie else { return false }
+
+        assign(accountId: accountId,
+               to: match,
+               accountDisplayName: accountDisplayName,
+               institution: institution,
+               lastFour: lastFour,
+               modelContext: modelContext)
+        return true
+    }
+
+    /// Significant lowercase word tokens of a card name (drops noise like "card").
+    private static func nameTokens(_ s: String) -> Set<String> {
+        let noise: Set<String> = ["card", "cards", "the", "a", "an"]
+        let cleaned = String(s.lowercased().map { ($0.isLetter || $0.isNumber) ? $0 : " " })
+        return Set(cleaned.split(separator: " ").map(String.init)
+            .filter { !$0.isEmpty && !noise.contains($0) })
+    }
+
     /// Remove ALL on-device linked data (every linked statement + row + mapping),
     /// for the "delete all my data" flow. Wallet cards and manual statements stay.
     @MainActor

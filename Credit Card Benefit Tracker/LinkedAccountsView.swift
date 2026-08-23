@@ -424,6 +424,16 @@ struct LinkedAccountsView: View {
                 activeAccountIds: Set(fetched.map { $0.id }),
                 modelContext: modelContext
             )
+            // Auto-assign any unmapped account to a wallet card by name match.
+            for account in fetched {
+                LinkSyncService.autoAssignByName(
+                    accountId: account.id,
+                    accountDisplayName: account.name,
+                    institution: account.institution,
+                    lastFour: account.lastFour,
+                    modelContext: modelContext
+                )
+            }
         } catch {
             // Do NOT reconcile on error — the list isn't authoritative and we
             // must not wipe still-valid data.
