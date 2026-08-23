@@ -103,10 +103,16 @@ export async function findCustomerId(appUserId: string): Promise<string | null> 
 export async function getOrCreateCustomerId(appUserId: string): Promise<string> {
   const existing = await findCustomerId(appUserId);
   if (existing) return existing;
+  // Customer search is eventually consistent (~a minute), so two link attempts
+  // in quick succession could both miss and both create a customer. A stable
+  // idempotency key keyed to the user makes repeated creates return the SAME
+  // customer within Stripe's idempotency window, closing that race. After the
+  // window, the search above finds the (now-indexed) customer instead.
   const customer = await guard(() =>
-    stripe.customers.create({
-      metadata: { app: 'CreditCardBenefitTracker', [APP_USER_KEY]: appUserId },
-    }),
+    stripe.customers.create(
+      { metadata: { app: 'CreditCardBenefitTracker', [APP_USER_KEY]: appUserId } },
+      { idempotencyKey: `create-customer-${appUserId}` },
+    ),
   );
   return customer.id;
 }
