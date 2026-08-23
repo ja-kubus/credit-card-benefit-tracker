@@ -120,10 +120,12 @@ struct PaywallView: View {
                 Task { await buy(product) }
             } label: {
                 Group {
-                    if purchasing == product?.id {
+                    if let product, purchasing == product.id {
                         ProgressView()
                     } else if isCurrent {
                         Text("Current Plan")
+                    } else if product == nil {
+                        Text(subscriptions.isLoadingProducts ? "Loading…" : "Unavailable")
                     } else {
                         Text("Subscribe")
                     }
