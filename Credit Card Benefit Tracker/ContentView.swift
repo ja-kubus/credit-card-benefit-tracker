@@ -223,6 +223,8 @@ struct ContentView: View {
             // Remove card/bill-payment rows wrongly imported into linked
             // statements (they aren't spending and skewed the spend total).
             LinkSyncService.removeLinkedBillPayments(modelContext: modelContext)
+            // Load user-taught merchant categorizations so imports/detection use them.
+            MerchantLearning.refreshCache(modelContext: modelContext)
             // Seed already-satisfied conditions silently (read, no banner) so we
             // don't banner-storm on launch for states that were already true.
             NotificationEvents.evaluate(cards: userCards, context: modelContext, silent: true)

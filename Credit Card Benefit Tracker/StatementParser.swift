@@ -1089,9 +1089,22 @@ class StatementParser {
 // MARK: - Category Detector
 
 struct CategoryDetector {
+    /// User-taught merchant → category mappings (normalized key → category),
+    /// loaded from SwiftData by MerchantLearning. Checked FIRST so a user's own
+    /// corrections always win over the built-in rules.
+    static var learnedOverrides: [String: String] = [:]
+
     static func detect(merchant: String, issuer: String) -> String {
-        // Issuer-specific overrides win first (e.g. Chase codes DoorDash as
-        // dining). Maintained in MerchantCategoryRules, not user-editable.
+        // 1. What the USER taught us wins over everything.
+        if !learnedOverrides.isEmpty {
+            let key = MerchantLearning.normalizeKey(merchant)
+            if !key.isEmpty, let learned = learnedOverrides[key] {
+                return learned
+            }
+        }
+
+        // 2. Issuer-specific overrides (e.g. Chase codes DoorDash as dining).
+        //    Maintained in MerchantCategoryRules, not user-editable.
         if let override = MerchantCategoryRules.category(forMerchant: merchant, issuer: issuer) {
             return override
         }
@@ -1099,17 +1112,17 @@ struct CategoryDetector {
         let lowerMerchant = merchant.lowercased()
         
         // Restaurant keywords
-        if lowerMerchant.contains(regex: "restaurant|cafe|coffee|bar|grill|bistro|steakhouse|pizza|burger|diner|pub|tavern|brewery|winery|steak|noodle|sushi|seafood|bbq|buffet|food truck|fast food|takeout|delivery|pho|omakase|brunch|breakfast|lunch|dinner|dessert|ice cream|bakery|patisserie|donut|bagel|juice|smoothie|tea|espresso|latte|cappuccino|mocha|kombucha|cocktail|happy hour|tapas|gastropub|food hall") {
+        if lowerMerchant.contains(regex: "restaurant|cafe|coffee|bar|grill|bistro|steakhouse|pizza|burger|diner|pub|tavern|brewery|winery|steak|noodle|sushi|seafood|bbq|buffet|food truck|fast food|takeout|delivery|pho|omakase|brunch|breakfast|lunch|dinner|dessert|ice cream|bakery|patisserie|donut|bagel|juice|smoothie|tea|espresso|latte|cappuccino|mocha|kombucha|cocktail|happy hour|tapas|gastropub|food hall|mcdonald|chipotle|starbucks|dunkin|taco bell|wendy|chick.?fil.?a|panera|sweetgreen|shake shack|five guys|popeyes|domino|papa john|olive garden|applebee|ihop|denny|panda express|in.?n.?out|whataburger|culver|raising cane|jersey mike|jimmy john|wingstop|dairy queen|sonic drive|tim horton|dutch bros|peet|kfc|chili's|buffalo wild|cracker barrel|red lobster|outback|texas roadhouse|panda buffet|noodles & co|qdoba|moe's|jamba|cava|shake ?shack") {
             return "Restaurants"
         }
         
         // Supermarket keywords
-        if lowerMerchant.contains(regex: "whole foods|trader joe|safeway|kroger|albertson|publix|instacart|amazon fresh|sprouts|wegmans|winco|harris teeter|ralphs|smith|H-E-B|giant|food lion|meijer|stop & shop|grocery|supermarket") {
+        if lowerMerchant.contains(regex: "whole foods|trader joe|safeway|kroger|albertson|publix|instacart|amazon fresh|sprouts|wegmans|winco|harris teeter|ralphs|smith|H-E-B|giant|food lion|meijer|stop & shop|grocery|supermarket|aldi|vons|jewel|shoprite|hy.?vee|food 4 less|save.?a.?lot|piggly wiggly|giant eagle|hannaford|market basket|lidl|fresh market|pavilions|acme market|shaws|fred meyer") {
             return "Supermarkets"
         }
         
         // Flight keywords
-        if lowerMerchant.contains(regex: "united|american|delta|southwest|frontier|alaska|spirit|jetblue|flight|airline|kayak|expedia|orbitz|skyscanner|farecompare|travelocity|aeromexico|lufthansa|air france|british airways|emirates|qatar|singapore airlines|virgin atlantic") {
+        if lowerMerchant.contains(regex: "united|american|delta|southwest|frontier|alaska|spirit|jetblue|flight|airline|kayak|expedia|orbitz|skyscanner|farecompare|travelocity|aeromexico|lufthansa|air france|british airways|emirates|qatar|singapore airlines|virgin atlantic|air canada|klm|turkish airlines|avianca|hawaiian air|allegiant|aer lingus|iberia|japan airlines|ana |cathay|qantas|air new zealand|copa air|breeze airway|sun country") {
             return "Flights"
         }
         
@@ -1124,22 +1137,22 @@ struct CategoryDetector {
         }
 
         // Gas stations / EV charging
-        if lowerMerchant.contains(regex: "shell|chevron|exxon|mobil|bp |bp#|sunoco|marathon|phillips 66|conoco|valero|speedway|circle k|wawa|quiktrip|casey|7-eleven fuel|gas station|fuel|supercharger|evgo|chargepoint|electrify america") {
+        if lowerMerchant.contains(regex: "shell|chevron|exxon|mobil|bp |bp#|sunoco|marathon|phillips 66|conoco|valero|speedway|circle k|wawa|quiktrip|casey|7-eleven fuel|gas station|fuel|supercharger|evgo|chargepoint|electrify america|texaco|arco|citgo|sinclair|murphy usa|love's travel|pilot flying|racetrac|kwik trip|sheetz|cumberland farms|gulf oil|76 gas|maverik") {
             return "Gas Stations"
         }
 
         // Streaming services
-        if lowerMerchant.contains(regex: "netflix|hulu|spotify|disney plus|disney\\+|hbo|max\\.com|peacock|paramount|apple tv|apple\\.com/bill|youtube premium|youtube tv|audible|pandora|siriusxm|crunchyroll|twitch") {
+        if lowerMerchant.contains(regex: "netflix|hulu|spotify|disney plus|disney\\+|hbo|max\\.com|peacock|paramount|apple tv|apple\\.com/bill|youtube premium|youtube tv|audible|pandora|siriusxm|crunchyroll|twitch|apple music|tidal|deezer|dazn|fubo|sling tv|discovery\\+|starz|showtime|mubi|espn\\+") {
             return "Streaming"
         }
 
         // Transit / rideshare / commuting
-        if lowerMerchant.contains(regex: "uber|lyft|mta|metro|subway station|amtrak|caltrain|bart|transit|parking|toll|ferry|taxi|via ") {
+        if lowerMerchant.contains(regex: "uber|lyft|mta|metro|subway station|amtrak|caltrain|bart|transit|parking|toll|ferry|taxi|via |e-?zpass|fastrak|sunpass|clipper card|ventra|septa|wmata|njt|path train|bird ride|lime ride|revel|citi ?bike") {
             return "Transit"
         }
 
         // Drugstores
-        if lowerMerchant.contains(regex: "cvs|walgreens|rite aid|duane reade|pharmacy|drugstore") {
+        if lowerMerchant.contains(regex: "cvs|walgreens|rite aid|duane reade|pharmacy|drugstore|health mart") {
             return "Drugstores"
         }
 

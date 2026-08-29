@@ -904,6 +904,14 @@ struct SpendingCategoryDetailSheet: View {
                     availableCategories: Self.allCategories,
                     onSelect: { newCategory in
                         row.category = newCategory
+                        // Learn this merchant → category and apply it to every
+                        // other transaction from the same merchant (and future
+                        // imports), shrinking "Other" over time.
+                        MerchantLearning.learn(
+                            description: row.transactionDescription,
+                            category: newCategory,
+                            modelContext: modelContext
+                        )
                         try? modelContext.save()
                         // If it no longer belongs to this category view, drop it.
                         let key = newCategory.isEmpty ? "Other" : newCategory

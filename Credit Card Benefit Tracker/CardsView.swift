@@ -1465,6 +1465,11 @@ struct StatementRowCategoryEditor: View {
                 availableCategories: availableCategories,
                 onSelect: { newCategory in
                     row.category = newCategory
+                    MerchantLearning.learn(
+                        description: row.transactionDescription,
+                        category: newCategory,
+                        modelContext: modelContext
+                    )
                     try? modelContext.save()
                     onDismiss()
                 },
