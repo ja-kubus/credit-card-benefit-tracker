@@ -168,7 +168,7 @@ struct LinkedAccountsView: View {
                 Label("Sync now", systemImage: "arrow.triangle.2.circlepath")
             }
         } footer: {
-            Text("\(linkedBankCount) of \(subscriptions.maxLinkedIssuers) bank\(subscriptions.maxLinkedIssuers == 1 ? "" : "s") linked on your \(subscriptions.effectiveTierName) plan. You can add any number of cards from a linked bank.")
+            Text("\(accounts.count) of \(subscriptions.maxLinkedCards) card\(subscriptions.maxLinkedCards == 1 ? "" : "s") linked on your \(subscriptions.effectiveTierName) plan. Cards may be linked from up to \(subscriptions.maxLinkedBanks) banks.")
         }
     }
 
@@ -177,7 +177,7 @@ struct LinkedAccountsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Automatic card linking", systemImage: "lock.fill")
                     .font(.subheadline.weight(.semibold))
-                Text("Connect your cards to import transactions automatically with Concierge Premium (up to 5 banks) or Max (up to 10 banks) — with unlimited cards per bank. Manual statement upload stays free.")
+                Text("Connect your cards to import transactions automatically with Concierge Premium (up to 5 cards) or Max (up to 15). Cards may be linked from up to 5 banks. Manual statement upload stays free.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button {
@@ -214,9 +214,12 @@ struct LinkedAccountsView: View {
         institution.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Number of distinct banks currently linked (the billed unit + plan limit).
-    private var linkedBankCount: Int {
-        Set(accounts.map { normalizedIssuer($0.institution) }).count
+    /// Message shown when the card limit is reached (nudges Premium → Max).
+    private var cardLimitMessage: String {
+        if subscriptions.purchasedTier == .premium {
+            return "You've reached Premium's limit of \(subscriptions.maxLinkedCards) linked cards. Upgrade to Concierge Max for up to 15, or disconnect a card."
+        }
+        return "You've reached your plan's limit of \(subscriptions.maxLinkedCards) linked cards. Upgrade or disconnect a card to add more."
     }
 
     @ViewBuilder
@@ -390,6 +393,12 @@ struct LinkedAccountsView: View {
     private func connect() async {
         errorMessage = nil
         statusMessage = nil
+        // Pre-check the card limit before incurring any connection cost.
+        guard accounts.count < subscriptions.maxLinkedCards else {
+            errorMessage = cardLimitMessage
+            showPaywall = true
+            return
+        }
         do {
             // 1. Ask the backend for a Financial Connections session.
             isBusy = true
@@ -414,20 +423,22 @@ struct LinkedAccountsView: View {
             defer { isBusy = false }
             let linked = try await LinkBackendClient.shared.completeLink(sessionId: session.sessionId)
 
-            // Enforce the plan's BANK limit. A Stripe session is one institution,
-            // so if this connect adds a NEW bank beyond the limit, undo it. Adding
-            // more cards from an already-linked bank is always allowed (no new
-            // bank, no extra cost).
-            let priorBanks = Set(accounts.map { normalizedIssuer($0.institution) })
-            let combinedBanks = priorBanks.union(linked.map { normalizedIssuer($0.institution) })
-            if combinedBanks.count > subscriptions.maxLinkedIssuers {
-                let newBankAccounts = linked.filter { !priorBanks.contains(normalizedIssuer($0.institution)) }
-                for acc in newBankAccounts {
-                    try? await LinkBackendClient.shared.unlink(accountId: acc.id)
-                }
+            // Validate BOTH limits now that we know what was linked. All-or-nothing
+            // per session: if adding these would exceed either limit, undo them.
+            let prospectiveCardIDs = Set(accounts.map { $0.id }).union(linked.map { $0.id })
+            let prospectiveBanks = Set((accounts + linked).map { normalizedIssuer($0.institution) })
+
+            if prospectiveCardIDs.count > subscriptions.maxLinkedCards {
+                for acc in linked { try? await LinkBackendClient.shared.unlink(accountId: acc.id) }
                 await loadAccounts()
-                errorMessage = "Your plan allows cards from up to \(subscriptions.maxLinkedIssuers) banks. Upgrade to link another bank (you can still add more cards from your existing banks)."
+                errorMessage = cardLimitMessage
                 showPaywall = true
+                return
+            }
+            if prospectiveBanks.count > subscriptions.maxLinkedBanks {
+                for acc in linked { try? await LinkBackendClient.shared.unlink(accountId: acc.id) }
+                await loadAccounts()
+                errorMessage = "Cards can be linked from up to \(subscriptions.maxLinkedBanks) banks. Disconnect a bank first to link a different one."
                 return
             }
 
