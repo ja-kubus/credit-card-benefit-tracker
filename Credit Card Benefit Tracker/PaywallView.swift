@@ -56,12 +56,19 @@ struct PaywallView: View {
                             .foregroundStyle(.red)
                     }
 
-                    Text("Subscriptions renew monthly until cancelled. Manage or cancel anytime in Settings. Manual statement upload is always free.")
+                    Text("Concierge Premium ($2.99/month) and Concierge Max ($5.99/month) are auto-renewing subscriptions. Payment is charged to your Apple Account at confirmation. It renews automatically each month unless cancelled at least 24 hours before the end of the current period; your account is charged for renewal within 24 hours before the period ends. Manage or cancel anytime in your Apple Account settings. Manual statement upload is always free.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                         .padding(.top, 8)
+
+                    HStack(spacing: 16) {
+                        Link("Privacy Policy", destination: URL(string: "https://ja-kubus.github.io/credit-card-benefit-tracker/privacy.html")!)
+                        Link("Terms of Use (EULA)", destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!)
+                    }
+                    .font(.caption2)
+                    .padding(.top, 2)
                 }
                 .padding()
             }
@@ -102,9 +109,9 @@ struct PaywallView: View {
                     Text(tagline).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text(product?.displayPrice ?? "—")
+                Text(product?.displayPrice ?? fallbackPrice(tier))
                     .font(.title3.weight(.semibold))
-                + Text(product != nil ? " /mo" : "")
+                + Text(" /mo")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -124,8 +131,6 @@ struct PaywallView: View {
                         ProgressView()
                     } else if isCurrent {
                         Text("Current Plan")
-                    } else if product == nil {
-                        Text(subscriptions.isLoadingProducts ? "Loading…" : "Unavailable")
                     } else {
                         Text("Subscribe")
                     }
@@ -135,7 +140,7 @@ struct PaywallView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(Color.appCoral)
-            .disabled(product == nil || isCurrent || purchasing != nil)
+            .disabled(isCurrent || purchasing != nil)
         }
         .padding()
         .background(
@@ -146,6 +151,17 @@ struct PaywallView: View {
                         .stroke(isCurrent ? Color.appLeaf : Color.clear, lineWidth: 2)
                 )
         )
+    }
+
+    /// Shown when StoreKit hasn't returned the product yet (e.g. before the App
+    /// Store Connect products propagate, or in a build without a StoreKit config),
+    /// so the paywall never renders a blank/"Unavailable" price.
+    private func fallbackPrice(_ tier: AppTier) -> String {
+        switch tier {
+        case .premium: return "$2.99"
+        case .max: return "$5.99"
+        case .free: return ""
+        }
     }
 
     private func product(for tier: AppTier) -> Product? {
