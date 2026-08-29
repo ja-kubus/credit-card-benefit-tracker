@@ -70,8 +70,10 @@ final class SubscriptionManager: ObservableObject {
     /// Account linking is available on Premium/Max, or during the trial.
     var canLinkAccounts: Bool { purchasedTier >= .premium || isInTrial }
 
-    /// Maximum number of linked cards allowed on the current tier.
-    var maxLinkedCards: Int {
+    /// Maximum number of distinct linked BANKS (institutions) allowed on the
+    /// current tier. Cost is billed per bank, so the limit counts banks, not
+    /// cards — a user can link any number of cards from an allowed bank.
+    var maxLinkedIssuers: Int {
         switch purchasedTier {
         case .max: return 10
         case .premium: return 5

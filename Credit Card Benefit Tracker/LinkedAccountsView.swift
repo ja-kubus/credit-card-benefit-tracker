@@ -168,7 +168,7 @@ struct LinkedAccountsView: View {
                 Label("Sync now", systemImage: "arrow.triangle.2.circlepath")
             }
         } footer: {
-            Text("\(accounts.count) of \(subscriptions.maxLinkedCards) linked cards used on your \(subscriptions.effectiveTierName) plan.")
+            Text("\(linkedBankCount) of \(subscriptions.maxLinkedIssuers) bank\(subscriptions.maxLinkedIssuers == 1 ? "" : "s") linked on your \(subscriptions.effectiveTierName) plan. You can add any number of cards from a linked bank.")
         }
     }
 
@@ -177,7 +177,7 @@ struct LinkedAccountsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("Automatic card linking", systemImage: "lock.fill")
                     .font(.subheadline.weight(.semibold))
-                Text("Connect your cards to import transactions automatically with Concierge Premium (5 cards) or Max (10 cards). Manual statement upload stays free.")
+                Text("Connect your cards to import transactions automatically with Concierge Premium (up to 5 banks) or Max (up to 10 banks) — with unlimited cards per bank. Manual statement upload stays free.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button {
@@ -194,35 +194,68 @@ struct LinkedAccountsView: View {
         }
     }
 
+    /// Linked accounts grouped by bank (institution), preserving order.
+    private var issuerGroups: [(institution: String, accounts: [LinkedAccount])] {
+        var order: [String] = []
+        var map: [String: [LinkedAccount]] = [:]
+        for account in accounts {
+            let key = normalizedIssuer(account.institution)
+            if map[key] == nil { order.append(key); map[key] = [] }
+            map[key]?.append(account)
+        }
+        return order.map { key in
+            let group = map[key] ?? []
+            let name = group.first?.institution ?? key
+            return (name.isEmpty ? "Other" : name, group)
+        }
+    }
+
+    private func normalizedIssuer(_ institution: String) -> String {
+        institution.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Number of distinct banks currently linked (the billed unit + plan limit).
+    private var linkedBankCount: Int {
+        Set(accounts.map { normalizedIssuer($0.institution) }).count
+    }
+
+    @ViewBuilder
     private var accountsSection: some View {
-        Section("Linked accounts") {
-            if accounts.isEmpty {
+        if accounts.isEmpty {
+            Section("Linked accounts") {
                 Text("No accounts linked yet.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-            } else {
-                ForEach(accounts) { account in
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(account.name.isEmpty ? account.institution : account.name)
-                                    .font(.subheadline.weight(.semibold))
-                                Text(accountSubtitle(account))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+            }
+        } else {
+            // One section per bank, so cards are grouped under their issuer.
+            ForEach(issuerGroups, id: \.institution) { group in
+                Section(group.institution) {
+                    ForEach(group.accounts) { account in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(account.name.isEmpty ? account.institution : account.name)
+                                        .font(.subheadline.weight(.semibold))
+                                    if !account.lastFour.isEmpty {
+                                        Text("•••• \(account.lastFour)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                Spacer()
+                                Button(role: .destructive) {
+                                    accountPendingDisconnect = account
+                                } label: {
+                                    Text("Disconnect").font(.caption.weight(.semibold))
+                                }
+                                .buttonStyle(.borderless)
                             }
-                            Spacer()
-                            Button(role: .destructive) {
-                                accountPendingDisconnect = account
-                            } label: {
-                                Text("Disconnect").font(.caption.weight(.semibold))
-                            }
-                            .buttonStyle(.borderless)
-                        }
 
-                        cardAssignmentRow(for: account)
+                            cardAssignmentRow(for: account)
+                        }
+                        .padding(.vertical, 2)
                     }
-                    .padding(.vertical, 2)
                 }
             }
         }
@@ -244,12 +277,6 @@ struct LinkedAccountsView: View {
         }
     }
 
-    private func accountSubtitle(_ account: LinkedAccount) -> String {
-        var parts: [String] = []
-        if !account.institution.isEmpty { parts.append(account.institution) }
-        if !account.lastFour.isEmpty { parts.append("•••• \(account.lastFour)") }
-        return parts.joined(separator: " ")
-    }
 
     /// Row that shows which wallet card a linked account is assigned to, with a
     /// menu to (re)assign it. Until a card is chosen, the imported transactions
@@ -363,12 +390,6 @@ struct LinkedAccountsView: View {
     private func connect() async {
         errorMessage = nil
         statusMessage = nil
-        // Enforce the plan's card cap before incurring any connection cost.
-        guard accounts.count < subscriptions.maxLinkedCards else {
-            errorMessage = "You've reached your plan's limit of \(subscriptions.maxLinkedCards) linked cards. Upgrade or disconnect a card to add more."
-            showPaywall = true
-            return
-        }
         do {
             // 1. Ask the backend for a Financial Connections session.
             isBusy = true
@@ -392,6 +413,24 @@ struct LinkedAccountsView: View {
             isBusy = true
             defer { isBusy = false }
             let linked = try await LinkBackendClient.shared.completeLink(sessionId: session.sessionId)
+
+            // Enforce the plan's BANK limit. A Stripe session is one institution,
+            // so if this connect adds a NEW bank beyond the limit, undo it. Adding
+            // more cards from an already-linked bank is always allowed (no new
+            // bank, no extra cost).
+            let priorBanks = Set(accounts.map { normalizedIssuer($0.institution) })
+            let combinedBanks = priorBanks.union(linked.map { normalizedIssuer($0.institution) })
+            if combinedBanks.count > subscriptions.maxLinkedIssuers {
+                let newBankAccounts = linked.filter { !priorBanks.contains(normalizedIssuer($0.institution)) }
+                for acc in newBankAccounts {
+                    try? await LinkBackendClient.shared.unlink(accountId: acc.id)
+                }
+                await loadAccounts()
+                errorMessage = "Your plan allows cards from up to \(subscriptions.maxLinkedIssuers) banks. Upgrade to link another bank (you can still add more cards from your existing banks)."
+                showPaywall = true
+                return
+            }
+
             // Auto-inherit a prior card assignment for reconnected accounts so the
             // user needn't reassign.
             for account in linked {

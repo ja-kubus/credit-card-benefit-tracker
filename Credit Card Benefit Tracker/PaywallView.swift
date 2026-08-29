@@ -35,13 +35,13 @@ struct PaywallView: View {
 
                     tierCard(
                         tier: .premium,
-                        tagline: "Link up to 5 cards",
-                        features: ["Connect cards automatically", "Up to 5 linked cards", "Transactions import + categorize"]
+                        tagline: "Cards from up to 5 banks",
+                        features: ["Connect cards automatically", "Cards from up to 5 banks", "Unlimited cards per bank", "Transactions import + categorize"]
                     )
                     tierCard(
                         tier: .max,
-                        tagline: "Link up to 10 cards",
-                        features: ["Everything in Premium", "Up to 10 linked cards"]
+                        tagline: "Cards from up to 10 banks",
+                        features: ["Everything in Premium", "Cards from up to 10 banks"]
                     )
 
                     Button("Restore Purchases") {
