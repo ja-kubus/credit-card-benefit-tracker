@@ -41,11 +41,11 @@ enum LinkSyncService {
         let existingStatements = (try? modelContext.fetch(FetchDescriptor<Statement>())) ?? []
         let maps = (try? modelContext.fetch(FetchDescriptor<LinkedAccountMap>())) ?? []
 
-        var seen = Set<String>()
-        for row in existingRows {
-            seen.insert(dedupeKey(date: row.transactionDate,
-                                  description: row.transactionDescription,
-                                  amount: row.amount))
+        // Pre-normalized references for cross-source dedup: every existing row
+        // (linked OR uploaded), so we don't double-count a transaction that also
+        // appears in an uploaded statement (descriptions/dates differ by source).
+        var refs: [(date: Date, norm: String, amount: Double)] = existingRows.map {
+            ($0.transactionDate, TransactionDedup.normalizedMerchant($0.transactionDescription), $0.amount)
         }
 
         let grouped = Dictionary(grouping: posted, by: { $0.accountId })
@@ -93,9 +93,15 @@ enum LinkSyncService {
                 // Matches how uploaded statements are parsed. Refunds are kept.
                 if StatementParser.isBillPayment(txn.description) { continue }
 
-                let key = dedupeKey(date: txn.date, description: txn.description, amount: txn.amount)
-                if seen.contains(key) { continue }
-                seen.insert(key)
+                let norm = TransactionDedup.normalizedMerchant(txn.description)
+                let isDup = refs.contains { r in
+                    TransactionDedup.isSameTransaction(
+                        dateA: txn.date, normA: norm, amountA: txn.amount,
+                        dateB: r.date, normB: r.norm, amountB: r.amount
+                    )
+                }
+                if isDup { continue }
+                refs.append((txn.date, norm, txn.amount))
 
                 let category = CategoryDetector.detect(merchant: txn.description, issuer: issuerForCategorization)
                 let row = StatementRow(

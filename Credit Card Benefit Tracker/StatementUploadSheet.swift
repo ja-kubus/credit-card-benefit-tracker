@@ -500,13 +500,18 @@ struct StatementUploadSheet: View {
                         if skipDuplicateCheck {
                             filteredRows = parsedStatement.rows
                         } else {
+                            // Dedup against ALL of this card's existing rows —
+                            // including linked-account rows — using cross-source
+                            // matching (amount + nearby date + normalized merchant),
+                            // so an uploaded statement doesn't double linked data.
                             let existingRows = card.statements.flatMap { $0.rows }
                             for newRow in parsedStatement.rows {
-                                let isDuplicateTransaction = existingRows.contains { existingRow in
-                                    existingRow.transactionDate == newRow.transactionDate
-                                        && existingRow.transactionDescription.lowercased() == newRow.transactionDescription.lowercased()
-                                        && existingRow.amount == newRow.amount
-                                }
+                                let isDuplicateTransaction = TransactionDedup.isDuplicate(
+                                    date: newRow.transactionDate,
+                                    description: newRow.transactionDescription,
+                                    amount: newRow.amount,
+                                    against: existingRows
+                                )
 
                                 if isDuplicateTransaction {
                                     duplicateCount += 1
