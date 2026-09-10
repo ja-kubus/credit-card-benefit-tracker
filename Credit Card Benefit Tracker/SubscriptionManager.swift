@@ -144,11 +144,19 @@ final class SubscriptionManager: ObservableObject {
     /// `Transaction.currentEntitlements` already yields only active, non-revoked,
     /// non-expired entitlements, so we trust it rather than re-filtering (manual
     /// date checks misfire under StoreKit Testing's accelerated clock).
-    func refreshEntitlements() async {
+    func refreshEntitlements(justPurchased: Transaction? = nil) async {
         var highest: AppTier = .free
         for await result in Transaction.currentEntitlements {
             guard case .verified(let transaction) = result else { continue }
             let tier = SubscriptionProduct.tier(for: transaction.productID)
+            if tier > highest { highest = tier }
+        }
+        // `currentEntitlements` is eventually consistent: right after an upgrade
+        // (e.g. Premium -> Max in the same group) it can still report only the
+        // OLD product for a moment. Treat a just-purchased transaction as a floor
+        // so the upgrade reflects immediately; the listener reconciles later.
+        if let justPurchased {
+            let tier = SubscriptionProduct.tier(for: justPurchased.productID)
             if tier > highest { highest = tier }
         }
         purchasedTier = highest
@@ -160,7 +168,7 @@ final class SubscriptionManager: ObservableObject {
         case .success(let verification):
             if case .verified(let transaction) = verification {
                 await transaction.finish()
-                await refreshEntitlements()
+                await refreshEntitlements(justPurchased: transaction)
             }
         case .userCancelled, .pending:
             break
