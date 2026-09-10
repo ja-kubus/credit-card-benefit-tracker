@@ -9,7 +9,7 @@
 //  Tiers:
 //    Free            — manual upload only, no account linking
 //    Premium ($2.99) — linking up to 5 cards
-//    Max ($5.99)     — linking up to 10 cards
+//    Max ($5.99)     — linking up to 15 cards
 //    Trial (7 days)  — app-managed: linking up to 2 cards
 //
 //  The trial is app-managed (not a StoreKit intro offer) because it grants a

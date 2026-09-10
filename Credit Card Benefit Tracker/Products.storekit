@@ -48,7 +48,7 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Link up to 10 cards",
+              "description" : "Link up to 15 cards",
               "displayName" : "Concierge Max",
               "locale" : "en_US"
             }
