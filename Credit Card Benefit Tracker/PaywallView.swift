@@ -55,19 +55,6 @@ struct PaywallView: View {
                     .font(.footnote)
                     .padding(.top, 4)
 
-                    // TEMPORARY diagnostic — remove before App Store submission.
-                    VStack(spacing: 2) {
-                        Text("Active entitlements (debug):")
-                            .font(.caption2.weight(.semibold))
-                        Text(subscriptions.entitlementDebug.isEmpty ? "—" : subscriptions.entitlementDebug)
-                            .font(.caption2.monospaced())
-                            .multilineTextAlignment(.center)
-                        Text("Computed tier: \(subscriptions.purchasedTier.displayName)")
-                            .font(.caption2)
-                    }
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 6)
-
                     if let errorMessage {
                         Text(errorMessage)
                             .font(.caption)

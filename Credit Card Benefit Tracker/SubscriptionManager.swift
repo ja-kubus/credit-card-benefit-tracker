@@ -60,9 +60,6 @@ final class SubscriptionManager: ObservableObject {
     @Published private(set) var isInTrial: Bool = false
     @Published private(set) var trialDaysRemaining: Int = 0
     @Published private(set) var isLoadingProducts = false
-    /// TEMPORARY: raw list of active entitlement product IDs, for diagnosing
-    /// tier mismatches on TestFlight. Remove before App Store submission.
-    @Published private(set) var entitlementDebug = ""
 
     private let trialLength: TimeInterval = 7 * 24 * 60 * 60
     private let trialStartKey = "trial_start_date"
@@ -149,7 +146,6 @@ final class SubscriptionManager: ObservableObject {
     /// date checks misfire under StoreKit Testing's accelerated clock).
     func refreshEntitlements(justPurchased: Transaction? = nil) async {
         var highest: AppTier = .free
-        var debug: [String] = []
         for await result in Transaction.currentEntitlements {
             // Read the transaction whether or not it verifies. On TestFlight/
             // sandbox the NEWER transaction (e.g. a Max upgrade) can arrive
@@ -158,16 +154,13 @@ final class SubscriptionManager: ObservableObject {
             // tier here — every sensitive backend call does its own auth — so
             // trusting it for display is safe.
             let transaction: Transaction
-            let verified: Bool
             switch result {
-            case .verified(let t): transaction = t; verified = true
-            case .unverified(let t, _): transaction = t; verified = false
+            case .verified(let t): transaction = t
+            case .unverified(let t, _): transaction = t
             }
             let tier = SubscriptionProduct.tier(for: transaction.productID)
-            debug.append("\(transaction.productID)\(verified ? "" : " ⚠︎unverified")")
             if tier > highest { highest = tier }
         }
-        entitlementDebug = debug.isEmpty ? "no active entitlements" : debug.joined(separator: "\n")
         // `currentEntitlements` is eventually consistent: right after an upgrade
         // (e.g. Premium -> Max in the same group) it can still report only the
         // OLD product for a moment. Treat a just-purchased transaction as a floor
