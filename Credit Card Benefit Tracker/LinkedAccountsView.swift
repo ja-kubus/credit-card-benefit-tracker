@@ -460,8 +460,25 @@ struct LinkedAccountsView: View {
             statusMessage = "Connected. Imported \(count) new transactions."
         } catch {
             isBusy = false
-            errorMessage = error.localizedDescription
+            handleAuthError(error)
         }
+    }
+
+    /// Map a backend error to UI state. An expired/invalid session (401) is
+    /// surfaced as a return to the Sign in with Apple screen rather than a scary
+    /// "Server error" — the client has already cleared the stale token, so a
+    /// single tap re-authenticates. Returns true if it was an auth error.
+    @discardableResult
+    private func handleAuthError(_ error: Error) -> Bool {
+        if case LinkBackendError.notAuthenticated = error {
+            isSignedIn = false
+            accounts = []
+            errorMessage = nil
+            statusMessage = "Please sign in again to continue."
+            return true
+        }
+        errorMessage = error.localizedDescription
+        return false
     }
 
     private func loadAccounts() async {
@@ -487,7 +504,7 @@ struct LinkedAccountsView: View {
         } catch {
             // Do NOT reconcile on error — the list isn't authoritative and we
             // must not wipe still-valid data.
-            errorMessage = error.localizedDescription
+            handleAuthError(error)
         }
     }
 
@@ -499,7 +516,7 @@ struct LinkedAccountsView: View {
             let count = try await LinkSyncService.sync(modelContext: modelContext)
             statusMessage = "Imported \(count) new transactions."
         } catch {
-            errorMessage = error.localizedDescription
+            handleAuthError(error)
         }
     }
 

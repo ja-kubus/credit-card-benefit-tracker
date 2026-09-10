@@ -278,6 +278,14 @@ actor LinkBackendClient {
     private static func validate(_ response: URLResponse) throws {
         guard let http = response as? HTTPURLResponse else { return }
         guard (200..<300).contains(http.statusCode) else {
+            // An expired/invalid backend session comes back as 401. Clear the
+            // stale token so the app self-heals to a clean signed-out state
+            // (one-tap Sign in with Apple) instead of dead-ending on a raw
+            // "Server error (HTTP 401)".
+            if http.statusCode == 401 {
+                KeychainHelper.delete("backend_session_token")
+                throw LinkBackendError.notAuthenticated
+            }
             throw LinkBackendError.badResponse(status: http.statusCode)
         }
     }

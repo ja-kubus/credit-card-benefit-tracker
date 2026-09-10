@@ -58,7 +58,7 @@ export const config = {
   corsOrigins: parseOrigins(),
 
   sessionSecret: required('SESSION_SECRET'),
-  sessionExpiry: '30d' as const,
+  sessionExpiry: '365d' as const,
   sessionIssuer: 'linking-backend' as const,
 
   appleClientId: required('APPLE_CLIENT_ID'),
