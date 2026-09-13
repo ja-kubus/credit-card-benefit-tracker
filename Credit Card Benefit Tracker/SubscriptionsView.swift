@@ -71,23 +71,64 @@ private enum SubscriptionDetector {
         let monthKey: String     // "yyyy-MM"
     }
 
+    /// Words that carry no merchant identity — dropped so descriptor noise
+    /// doesn't split one subscription into two keys.
+    private static let stopWords: Set<String> = [
+        "the", "a", "an", "and", "of", "for", "to", "at", "on", "llc", "inc",
+        "co", "corp", "ltd", "com", "www", "http", "https"
+    ]
+
+    /// How close two charge amounts must be to count as the SAME recurring
+    /// charge. Recurring bills drift (insurance premiums tick up, streaming
+    /// price hikes), so an exact-amount match wrongly splits one subscription;
+    /// amounts within 20% of the previous charge are treated as one.
+    private static let amountRelTolerance = 0.20
+
     /// Normalize a merchant description into a stable grouping key.
-    /// Lowercases, strips store/reference numbers and common noise, collapses whitespace.
+    /// Tokenizes and drops tokens that contain a digit (store/reference/order
+    /// numbers), single characters, and obvious stop words, so the same
+    /// merchant produces one stable key ("geico auto") regardless of trailing
+    /// ids or punctuation. Falls back to digit-stripped text if nothing remains.
     static func normalize(_ description: String) -> String {
-        var s = description.lowercased()
+        let lowered = description.lowercased()
+        let tokens = lowered.split { !($0.isLetter || $0.isNumber) }
+        let kept = tokens.filter { t in
+            if t.count < 2 { return false }
+            if t.contains(where: { $0.isNumber }) { return false }
+            if stopWords.contains(String(t)) { return false }
+            return true
+        }
+        let key = kept.joined(separator: " ")
+        return key.isEmpty
+            ? lowered.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                     .trimmingCharacters(in: .whitespacesAndNewlines)
+            : key
+    }
 
-        // Remove "#12345" style store numbers.
-        s = s.replacingOccurrences(of: "#\\s*\\d+", with: " ", options: .regularExpression)
-        // Remove standalone long digit runs (reference / transaction numbers).
-        s = s.replacingOccurrences(of: "\\b\\d{3,}\\b", with: " ", options: .regularExpression)
-        // Remove trailing digits/store numbers left at the end.
-        s = s.replacingOccurrences(of: "\\d+\\s*$", with: " ", options: .regularExpression)
-        // Strip common noise tokens/punctuation.
-        s = s.replacingOccurrences(of: "[*#.,/\\\\-]", with: " ", options: .regularExpression)
-        // Collapse whitespace.
-        s = s.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-
-        return s.trimmingCharacters(in: .whitespacesAndNewlines)
+    /// Split one merchant's charges into recurring-charge clusters by amount
+    /// proximity. Charges are sorted by amount and chained: each joins the
+    /// current cluster if it's within `amountRelTolerance` of the previous
+    /// amount, otherwise it starts a new cluster. This keeps a drifting premium
+    /// (e.g. $120 → $122.50) as ONE subscription while keeping clearly distinct
+    /// prices at the same biller (e.g. a $0.99 and a $9.99 plan) separate.
+    private static func clusterByAmount(_ members: [Charge]) -> [[Charge]] {
+        let sorted = members.sorted { $0.roundedAmount < $1.roundedAmount }
+        var clusters: [[Charge]] = []
+        var prevAmount = 0.0
+        for charge in sorted {
+            if clusters.isEmpty {
+                clusters.append([charge])
+            } else {
+                let ref = max(prevAmount, 0.01)
+                if (charge.roundedAmount - prevAmount) / ref <= amountRelTolerance {
+                    clusters[clusters.count - 1].append(charge)
+                } else {
+                    clusters.append([charge])
+                }
+            }
+            prevAmount = charge.roundedAmount
+        }
+        return clusters
     }
 
     private static func monthKey(for date: Date, calendar: Calendar) -> String {
@@ -140,35 +181,37 @@ private enum SubscriptionDetector {
             }
         }
 
-        // 2/3. Group by (normalizedMerchant, roundedAmount).
-        struct GroupKey: Hashable {
-            let merchant: String
-            let amount: Double
-        }
-        var groups: [GroupKey: [Charge]] = [:]
+        // 2. Group by normalized merchant only.
+        var byMerchant: [String: [Charge]] = [:]
         for charge in charges {
-            let key = GroupKey(merchant: charge.normalizedKey, amount: charge.roundedAmount)
-            groups[key, default: []].append(charge)
+            byMerchant[charge.normalizedKey, default: []].append(charge)
         }
 
-        // 4/5. Build results for groups spanning >= 2 distinct months.
+        // 3/4/5. Within each merchant, cluster by amount proximity (so a
+        // premium that changes over time stays ONE subscription instead of
+        // splitting per price and double-counting), then keep clusters spanning
+        // >= 2 distinct months. The representative amount is the most RECENT
+        // charge's, reflecting the current monthly cost.
         var results: [DetectedSubscription] = []
-        for (_, members) in groups {
-            let distinctMonths = Set(members.map { $0.monthKey })
-            guard distinctMonths.count >= 2 else { continue }
+        for (_, membersAll) in byMerchant {
+            for members in clusterByAmount(membersAll) {
+                let distinctMonths = Set(members.map { $0.monthKey })
+                guard distinctMonths.count >= 2 else { continue }
 
-            results.append(
-                DetectedSubscription(
-                    merchant: mostCommon(members.map { $0.rawDescription }) ?? members[0].rawDescription,
-                    amount: members[0].roundedAmount,
-                    cardName: mostCommon(members.map { $0.cardName }) ?? members[0].cardName,
-                    occurrences: members.count,
-                    months: distinctMonths.count,
-                    lastCharged: members.map { $0.date }.max() ?? members[0].date,
-                    category: mostCommon(members.map { $0.category }) ?? members[0].category,
-                    normalizedMerchantKey: members[0].normalizedKey
+                let latest = members.max { $0.date < $1.date } ?? members[0]
+                results.append(
+                    DetectedSubscription(
+                        merchant: mostCommon(members.map { $0.rawDescription }) ?? latest.rawDescription,
+                        amount: latest.roundedAmount,
+                        cardName: mostCommon(members.map { $0.cardName }) ?? latest.cardName,
+                        occurrences: members.count,
+                        months: distinctMonths.count,
+                        lastCharged: members.map { $0.date }.max() ?? latest.date,
+                        category: mostCommon(members.map { $0.category }) ?? latest.category,
+                        normalizedMerchantKey: latest.normalizedKey
+                    )
                 )
-            )
+            }
         }
 
         // Sort by amount (monthly cost) descending.
