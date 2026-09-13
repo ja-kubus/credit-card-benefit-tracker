@@ -167,6 +167,15 @@ struct LinkedAccountsView: View {
             } label: {
                 Label("Sync now", systemImage: "arrow.triangle.2.circlepath")
             }
+
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .foregroundStyle(Color.appCoral)
+                Text("How far back history goes depends on your bank — some share only recent weeks and won't back-fill older months, even after re-syncing. To fill a gap, upload that month's PDF statement; duplicates are detected automatically.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 2)
         } footer: {
             Text("\(accounts.count) of \(subscriptions.maxLinkedCards) card\(subscriptions.maxLinkedCards == 1 ? "" : "s") linked on your \(subscriptions.effectiveTierName) plan. Cards may be linked from up to \(subscriptions.maxLinkedBanks) banks.")
         }
