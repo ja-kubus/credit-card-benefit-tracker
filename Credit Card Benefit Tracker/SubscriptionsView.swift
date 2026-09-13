@@ -63,6 +63,7 @@ private enum SubscriptionDetector {
     private struct Charge {
         let rawDescription: String
         let normalizedKey: String
+        let tokens: [String]     // normalizedKey split into words, for prefix matching
         let roundedAmount: Double
         let amount: Double
         let cardName: String
@@ -105,28 +106,47 @@ private enum SubscriptionDetector {
             : key
     }
 
-    /// Split one merchant's charges into recurring-charge clusters by amount
-    /// proximity. Charges are sorted by amount and chained: each joins the
-    /// current cluster if it's within `amountRelTolerance` of the previous
-    /// amount, otherwise it starts a new cluster. This keeps a drifting premium
-    /// (e.g. $120 → $122.50) as ONE subscription while keeping clearly distinct
-    /// prices at the same biller (e.g. a $0.99 and a $9.99 plan) separate.
-    private static func clusterByAmount(_ members: [Charge]) -> [[Charge]] {
-        let sorted = members.sorted { $0.roundedAmount < $1.roundedAmount }
+    /// Whether two charges are the same recurring subscription. True when their
+    /// amounts are within tolerance AND their merchant keys are compatible —
+    /// i.e. one token list is a leading prefix of the other. This groups the
+    /// same service whose descriptor text varies month to month
+    /// ("google youtube premium" vs "google youtube"; "walmart plus" vs
+    /// "walmart") while keeping distinct services at one biller apart
+    /// ("google youtube" vs "google nest").
+    private static func sameSubscription(_ a: Charge, _ b: Charge) -> Bool {
+        let ref = max(min(a.roundedAmount, b.roundedAmount), 0.01)
+        guard abs(a.roundedAmount - b.roundedAmount) / ref <= amountRelTolerance else { return false }
+        let (short, long) = a.tokens.count <= b.tokens.count ? (a.tokens, b.tokens) : (b.tokens, a.tokens)
+        guard !short.isEmpty else { return false }
+        return Array(long.prefix(short.count)) == short
+    }
+
+    /// Cluster charges into subscriptions via union-find over `sameSubscription`.
+    /// Charges are pre-bucketed by their first token so we only compare within a
+    /// brand (keeps it fast and prevents unrelated brands from ever joining).
+    private static func clusterCharges(_ members: [Charge]) -> [[Charge]] {
+        var buckets: [String: [Charge]] = [:]
+        for c in members {
+            buckets[c.tokens.first ?? c.normalizedKey, default: []].append(c)
+        }
+
         var clusters: [[Charge]] = []
-        var prevAmount = 0.0
-        for charge in sorted {
-            if clusters.isEmpty {
-                clusters.append([charge])
-            } else {
-                let ref = max(prevAmount, 0.01)
-                if (charge.roundedAmount - prevAmount) / ref <= amountRelTolerance {
-                    clusters[clusters.count - 1].append(charge)
-                } else {
-                    clusters.append([charge])
+        for (_, bucket) in buckets {
+            let n = bucket.count
+            var parent = Array(0..<n)
+            func find(_ x: Int) -> Int {
+                var r = x
+                while parent[r] != r { parent[r] = parent[parent[r]]; r = parent[r] }
+                return r
+            }
+            for i in 0..<n {
+                for j in (i + 1)..<n where sameSubscription(bucket[i], bucket[j]) {
+                    parent[find(i)] = find(j)
                 }
             }
-            prevAmount = charge.roundedAmount
+            var grouped: [Int: [Charge]] = [:]
+            for i in 0..<n { grouped[find(i), default: []].append(bucket[i]) }
+            clusters.append(contentsOf: grouped.values)
         }
         return clusters
     }
@@ -169,6 +189,7 @@ private enum SubscriptionDetector {
                             rawDescription: row.transactionDescription
                                 .trimmingCharacters(in: .whitespacesAndNewlines),
                             normalizedKey: normalized,
+                            tokens: normalized.split(separator: " ").map(String.init),
                             roundedAmount: rounded,
                             amount: row.amount,
                             cardName: card.name,
@@ -181,37 +202,30 @@ private enum SubscriptionDetector {
             }
         }
 
-        // 2. Group by normalized merchant only.
-        var byMerchant: [String: [Charge]] = [:]
-        for charge in charges {
-            byMerchant[charge.normalizedKey, default: []].append(charge)
-        }
-
-        // 3/4/5. Within each merchant, cluster by amount proximity (so a
-        // premium that changes over time stays ONE subscription instead of
-        // splitting per price and double-counting), then keep clusters spanning
-        // >= 2 distinct months. The representative amount is the most RECENT
-        // charge's, reflecting the current monthly cost.
+        // 2/3/4/5. Cluster charges into subscriptions: same brand + compatible
+        // descriptor (token-prefix) + nearby amount. This consolidates a service
+        // whose descriptor text OR price drifts month to month (e.g. Google,
+        // Walmart+, GEICO) instead of splitting it and double-counting. Keep
+        // clusters spanning >= 2 distinct months. The representative amount is
+        // the most RECENT charge's, reflecting the current monthly cost.
         var results: [DetectedSubscription] = []
-        for (_, membersAll) in byMerchant {
-            for members in clusterByAmount(membersAll) {
-                let distinctMonths = Set(members.map { $0.monthKey })
-                guard distinctMonths.count >= 2 else { continue }
+        for members in clusterCharges(charges) {
+            let distinctMonths = Set(members.map { $0.monthKey })
+            guard distinctMonths.count >= 2 else { continue }
 
-                let latest = members.max { $0.date < $1.date } ?? members[0]
-                results.append(
-                    DetectedSubscription(
-                        merchant: mostCommon(members.map { $0.rawDescription }) ?? latest.rawDescription,
-                        amount: latest.roundedAmount,
-                        cardName: mostCommon(members.map { $0.cardName }) ?? latest.cardName,
-                        occurrences: members.count,
-                        months: distinctMonths.count,
-                        lastCharged: members.map { $0.date }.max() ?? latest.date,
-                        category: mostCommon(members.map { $0.category }) ?? latest.category,
-                        normalizedMerchantKey: latest.normalizedKey
-                    )
+            let latest = members.max { $0.date < $1.date } ?? members[0]
+            results.append(
+                DetectedSubscription(
+                    merchant: mostCommon(members.map { $0.rawDescription }) ?? latest.rawDescription,
+                    amount: latest.roundedAmount,
+                    cardName: mostCommon(members.map { $0.cardName }) ?? latest.cardName,
+                    occurrences: members.count,
+                    months: distinctMonths.count,
+                    lastCharged: members.map { $0.date }.max() ?? latest.date,
+                    category: mostCommon(members.map { $0.category }) ?? latest.category,
+                    normalizedMerchantKey: latest.normalizedKey
                 )
-            }
+            )
         }
 
         // Sort by amount (monthly cost) descending.
