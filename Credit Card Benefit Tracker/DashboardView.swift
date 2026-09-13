@@ -407,7 +407,7 @@ struct SpendingBreakdownView: View {
     @Query(sort: \UserCard.dateAdded) private var userCards: [UserCard]
 
     // User-selectable spending date range (defaults to the last ~3 months → today)
-    @State private var spendingStartDate: Date = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
+    @State private var spendingStartDate: Date = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
     @State private var spendingEndDate: Date = Date()
     // Selected cards to aggregate. Empty == all cards.
     @State private var spendingSelectedCards: Set<PersistentIdentifier> = []
@@ -535,7 +535,7 @@ struct SpendingBreakdownView: View {
                             // Set end first so the "From" picker's upper bound is
                             // today before we move the start date back.
                             spendingEndDate = Date()
-                            spendingStartDate = Calendar.current.date(byAdding: .month, value: -3, to: Date()) ?? Date()
+                            spendingStartDate = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
                             spendingSelectedCards = []      // back to all cards
                             selectedSpendingCategory = nil
                         }
