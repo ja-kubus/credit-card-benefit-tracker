@@ -936,15 +936,43 @@ struct SpendingCategoryDetailSheet: View {
         }
     }
 
-    /// Normalize a merchant so repeat purchases pool together (strip store/ref
-    /// numbers and punctuation).
+    /// Words that carry no merchant identity — dropped so they don't split or
+    /// falsely merge groups. Kept deliberately small (obvious filler only).
+    private static let merchantStopWords: Set<String> = [
+        "the", "a", "an", "and", "of", "for", "to", "at", "on", "llc", "inc",
+        "co", "corp", "ltd", "com", "www", "http", "https"
+    ]
+
+    /// Normalize a merchant so repeat purchases pool together even when the raw
+    /// text carries a per-transaction order/reference id.
+    ///
+    /// The key gap this closes: descriptors like "AMZN Mktp US*2X4B8" carry an
+    /// ALPHANUMERIC id (`2X4B8`) that a pure-digit strip misses, so every charge
+    /// got a unique key and never pooled. We now split into word tokens and drop
+    /// any token that (a) contains a digit (order ids, store numbers like 5744,
+    /// mixed codes), (b) is a single character, or (c) is an obvious stop word.
+    /// The remaining alphabetic tokens ("amzn mktp us") form a stable key shared
+    /// by all of that merchant's charges. We keep ALL such tokens (not just the
+    /// first) so distinct merchants behind a shared prefix — e.g. Square's
+    /// "SQ * COFFEE" vs "SQ *DINER" — stay separate rather than over-merging.
     private static func normalizedMerchant(_ description: String) -> String {
-        var t = description.lowercased()
-        t = t.replacingOccurrences(of: "#\\s*\\d+", with: " ", options: .regularExpression)
-        t = t.replacingOccurrences(of: "\\b\\d{3,}\\b", with: " ", options: .regularExpression)
-        t = t.replacingOccurrences(of: "[*#.,/\\\\-]", with: " ", options: .regularExpression)
-        t = t.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-        return t.trimmingCharacters(in: .whitespaces)
+        let lowered = description.lowercased()
+        // Split on anything that isn't a letter or digit (handles * # . , / - space).
+        let rawTokens = lowered.split { !($0.isLetter || $0.isNumber) }
+        let kept = rawTokens.filter { tok in
+            if tok.count < 2 { return false }
+            if tok.contains(where: { $0.isNumber }) { return false }
+            if merchantStopWords.contains(String(tok)) { return false }
+            return true
+        }
+        let key = kept.joined(separator: " ")
+        // Fall back to the digit-stripped whole string if filtering removed
+        // everything (e.g. a purely numeric descriptor), so it still pools by
+        // exact text instead of collapsing into one empty-key mega-group.
+        return key.isEmpty
+            ? lowered.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                     .trimmingCharacters(in: .whitespaces)
+            : key
     }
 
     /// Most common raw description in a pooled group, for display.
